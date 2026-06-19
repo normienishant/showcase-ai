@@ -345,7 +345,7 @@ function CatalogContent() {
   </div>
 </section>
 
-   {/* CATEGORY TABS + SORT — Clean, No Tooltips */}
+   {/* CATEGORY TABS — All Categories */}
 <div className="sticky top-16 z-40 bg-white/80 backdrop-blur-sm border-b border-gray-100/60">
   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div className="flex items-center justify-between py-3 gap-4">
@@ -353,8 +353,8 @@ function CatalogContent() {
         <button
           onClick={() => setSelectedCategory(null)}
           className={`px-4 py-1.5 text-sm font-medium rounded-full whitespace-nowrap transition-all relative ${
-            !selectedCategory 
-              ? 'text-blue-600' 
+            !selectedCategory
+              ? 'text-blue-600'
               : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
           }`}
         >
@@ -365,14 +365,15 @@ function CatalogContent() {
         </button>
         {topLevelCategories.map(cat => {
           const totalCount = getTotalParentProductCount(cat.id);
+          // Show ALL categories, even if count is 0 (but hide empty ones)
           if (totalCount === 0) return null;
           return (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-4 py-1.5 text-sm font-medium rounded-full whitespace-nowrap transition-all relative ${
-                selectedCategory === cat.id 
-                  ? 'text-blue-600' 
+                selectedCategory === cat.id
+                  ? 'text-blue-600'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
               }`}
             >
