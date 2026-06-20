@@ -1,17 +1,18 @@
-// app/admin/page.tsx — Modern Professional Admin
+// app/admin/page.tsx — Complete with Branding Functional
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Package, FolderTree, Users, Settings, LogOut,
   Search, Plus, Edit, Trash2, Eye, Download, TrendingUp, Clock,
-  ChevronRight, Bell, User, MoreVertical
+  Bell, User, MoreVertical
 } from 'lucide-react';
 import { MOCK_PRODUCTS, MOCK_CATEGORIES } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'categories' | 'leads' | 'branding'>('dashboard');
@@ -23,6 +24,32 @@ export default function AdminPage() {
     { id: 'l3', name: 'Amit Kumar', email: 'amit@example.com', phone: '+919876543212', status: 'contacted', date: '2026-06-16' },
     { id: 'l4', name: 'Sneha Reddy', email: 'sneha@example.com', phone: '+919876543213', status: 'new', date: '2026-06-15' },
   ]);
+
+  // Branding State with localStorage
+  const [branding, setBranding] = useState({
+    logoUrl: 'https://placehold.co/200x80/1a56db/white?text=BPE',
+    primaryColor: '#1a56db',
+    whatsappNumber: '+919311995859',
+    websiteUrl: 'https://www.bpe.com',
+  });
+
+  // Load branding from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('bpe-branding');
+    if (saved) {
+      try {
+        setBranding(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to parse branding:', e);
+      }
+    }
+  }, []);
+
+  // Save branding to localStorage
+  const saveBranding = () => {
+    localStorage.setItem('bpe-branding', JSON.stringify(branding));
+    toast.success('Branding settings saved!');
+  };
 
   const stats = [
     { label: 'Total Products', value: products.length, icon: Package, color: 'blue', trend: '+12%' },
@@ -47,7 +74,7 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-50/80 flex">
-      {/* Sidebar — Dark Modern */}
+      {/* Sidebar */}
       <motion.aside
         initial={{ x: -280, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
@@ -124,7 +151,6 @@ export default function AdminPage() {
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
-              {/* Stats Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {stats.map((stat, idx) => {
                   const Icon = stat.icon;
@@ -160,7 +186,6 @@ export default function AdminPage() {
                 })}
               </div>
 
-              {/* Recent Activity */}
               <Card className="border-0 shadow-sm">
                 <CardContent className="p-6">
                   <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
@@ -343,7 +368,7 @@ export default function AdminPage() {
             </motion.div>
           )}
 
-          {/* Branding */}
+          {/* Branding — Functional with localStorage */}
           {activeTab === 'branding' && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -354,25 +379,48 @@ export default function AdminPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="text-sm font-medium text-gray-700">Logo URL</label>
-                  <Input placeholder="https://..." value="BPE Logo (placeholder)" className="mt-1" />
+                  <Input
+                    placeholder="https://..."
+                    value={branding.logoUrl}
+                    onChange={(e) => setBranding({ ...branding, logoUrl: e.target.value })}
+                    className="mt-1"
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">Primary Color</label>
                   <div className="flex items-center gap-3 mt-1">
-                    <Input type="text" value="#1a56db" className="flex-1" />
-                    <div className="w-10 h-10 rounded-full border-2 border-gray-200" style={{ backgroundColor: '#1a56db' }} />
+                    <Input
+                      type="text"
+                      value={branding.primaryColor}
+                      onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
+                      className="flex-1"
+                    />
+                    <div
+                      className="w-10 h-10 rounded-full border-2 border-gray-200"
+                      style={{ backgroundColor: branding.primaryColor }}
+                    />
                   </div>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">WhatsApp Number</label>
-                  <Input value="+919311995859" className="mt-1" />
+                  <Input
+                    value={branding.whatsappNumber}
+                    onChange={(e) => setBranding({ ...branding, whatsappNumber: e.target.value })}
+                    className="mt-1"
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">Website URL</label>
-                  <Input value="https://www.bpe.com" className="mt-1" />
+                  <Input
+                    value={branding.websiteUrl}
+                    onChange={(e) => setBranding({ ...branding, websiteUrl: e.target.value })}
+                    className="mt-1"
+                  />
                 </div>
               </div>
-              <Button className="bg-blue-600 hover:bg-blue-700 shadow-sm">Save Changes</Button>
+              <Button className="bg-blue-600 hover:bg-blue-700 shadow-sm" onClick={saveBranding}>
+                Save Changes
+              </Button>
             </motion.div>
           )}
         </div>

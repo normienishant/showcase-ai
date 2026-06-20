@@ -1,9 +1,9 @@
-// app/product/[id]/client.tsx — Complete Layout Overhaul
+// app/product/[id]/client.tsx — Fixed Hydration
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, MessageCircle, Share2, ArrowLeft, Check, ZoomIn, X, ChevronLeft, ChevronRight, Clock, Tag, Info, Package, Ruler, Weight, Zap } from 'lucide-react';
+import { Heart, MessageCircle, Share2, ArrowLeft, Check, ZoomIn, X, ChevronLeft, ChevronRight, Clock, Tag, Package, Ruler, Weight, Zap } from 'lucide-react';
 import { useWishlist } from '@/store/wishlist';
 import { toast } from 'sonner';
 import { mockApi } from '@/lib/mockApi';
@@ -29,9 +29,15 @@ export default function ClientProductDetail({ product, company }: { product: Pro
   const [selectedImage, setSelectedImage] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [mounted, setMounted] = useState(false); // <-- ADD THIS
+
   const wishlist = useWishlist();
   const isInWishlist = wishlist.isInWishlist(product.id);
   const primary = company.primaryColor;
+
+  useEffect(() => {
+    setMounted(true); // <-- SET MOUNTED AFTER HYDRATION
+  }, []);
 
   useEffect(() => {
     const fetchRelated = async () => {
@@ -80,7 +86,6 @@ export default function ClientProductDetail({ product, company }: { product: Pro
   const nextImage = () => setSelectedImage((prev) => (prev + 1) % images.length);
   const prevImage = () => setSelectedImage((prev) => (prev - 1 + images.length) % images.length);
 
-  // Helper to get icon for spec key
   const getSpecIcon = (key: string) => {
     const lower = key.toLowerCase();
     if (lower.includes('weight')) return Weight;
@@ -122,9 +127,10 @@ export default function ClientProductDetail({ product, company }: { product: Pro
         </div>
       </div>
 
+      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 lg:gap-10">
-          {/* Left: Image Gallery — takes 3 columns on large screens */}
+          {/* Image Gallery */}
           <div className="lg:col-span-3">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
@@ -142,7 +148,7 @@ export default function ClientProductDetail({ product, company }: { product: Pro
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ duration: 0.3 }}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                 </AnimatePresence>
                 <button
@@ -192,7 +198,7 @@ export default function ClientProductDetail({ product, company }: { product: Pro
             </motion.div>
           </div>
 
-          {/* Right: Product Info — takes 2 columns */}
+          {/* Product Info */}
           <div className="lg:col-span-2 flex flex-col gap-6">
             <motion.div
               initial={{ opacity: 0, x: 20 }}
@@ -200,15 +206,11 @@ export default function ClientProductDetail({ product, company }: { product: Pro
               transition={{ duration: 0.5, delay: 0.2 }}
               className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-6"
             >
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
-                {product.name}
-              </h1>
-              <p className="text-gray-500 text-sm mt-2 leading-relaxed">
-                {product.description}
-              </p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">{product.name}</h1>
+              <p className="text-gray-500 text-sm mt-2 leading-relaxed">{product.description}</p>
             </motion.div>
 
-            {/* Specs Card */}
+            {/* Specs */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -236,37 +238,46 @@ export default function ClientProductDetail({ product, company }: { product: Pro
               </div>
             </motion.div>
 
-            {/* Action Buttons — Sticky Card on Desktop */}
+            {/* Actions — Only render after hydration to avoid mismatch */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
               className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-6 sticky bottom-0 lg:static bg-white/90 backdrop-blur-sm lg:bg-white lg:backdrop-blur-none"
             >
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={handleAddToWishlist}
-                  className={`flex-1 flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-medium rounded-xl transition-all shadow-sm ${
-                    isInWishlist
-                      ? 'bg-gray-900 text-white hover:bg-gray-800'
-                      : 'text-white hover:opacity-90'
-                  }`}
-                  style={isInWishlist ? {} : { backgroundColor: primary }}
-                >
-                  <Heart className="h-5 w-5" fill={isInWishlist ? 'white' : 'none'} />
-                  {isInWishlist ? 'Added to Wishlist' : 'Add to Wishlist'}
-                </button>
-                <a
-                  href={`https://wa.me/${company.whatsappNumber}?text=${whatsappMessage}`}
-                  target="_blank"
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-xl transition-all shadow-sm"
-                >
-                  <MessageCircle className="h-5 w-5" />
-                  <span className="hidden sm:inline">Inquire via WhatsApp</span>
-                  <span className="sm:hidden">WhatsApp</span>
-                </a>
-              </div>
-              {isInWishlist && (
+              {mounted ? (
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={handleAddToWishlist}
+                    className={`flex-1 flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-medium rounded-xl transition-all shadow-sm hover:opacity-90 ${
+                      isInWishlist ? 'bg-gray-900 text-white hover:bg-gray-800' : 'text-white'
+                    }`}
+                    style={isInWishlist ? {} : { backgroundColor: primary }}
+                  >
+                    <Heart className="h-5 w-5" fill={isInWishlist ? 'white' : 'none'} />
+                    {isInWishlist ? 'Added to Wishlist' : 'Add to Wishlist'}
+                  </button>
+                  <a
+                    href={`https://wa.me/${company.whatsappNumber}?text=${whatsappMessage}`}
+                    target="_blank"
+                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-xl transition-all shadow-sm hover:opacity-90"
+                  >
+                    <MessageCircle className="h-5 w-5" />
+                    <span className="hidden sm:inline">Inquire via WhatsApp</span>
+                    <span className="sm:hidden">WhatsApp</span>
+                  </a>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-medium rounded-xl shadow-sm bg-gray-300 text-gray-500 animate-pulse cursor-default">
+                    <Heart className="h-5 w-5" /> Loading...
+                  </button>
+                  <button className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-medium rounded-xl shadow-sm bg-gray-300 text-gray-500 animate-pulse cursor-default">
+                    Loading...
+                  </button>
+                </div>
+              )}
+              {mounted && isInWishlist && (
                 <div className="mt-3 flex items-center justify-center gap-2 text-sm text-green-600">
                   <Check className="h-4 w-4" />
                   This product is in your wishlist
@@ -284,9 +295,7 @@ export default function ClientProductDetail({ product, company }: { product: Pro
             transition={{ delay: 0.6 }}
             className="mt-16 pt-10 border-t border-gray-200/60"
           >
-            <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-              <span>✨ You might also like</span>
-            </h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">✨ You might also like</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {relatedProducts.map((rel, idx) => (
                 <motion.div
@@ -319,7 +328,7 @@ export default function ClientProductDetail({ product, company }: { product: Pro
         )}
       </div>
 
-      {/* Image Zoom Modal */}
+      {/* Zoom Modal */}
       <AnimatePresence>
         {isZoomed && (
           <motion.div

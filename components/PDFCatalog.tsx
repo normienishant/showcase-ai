@@ -25,9 +25,9 @@ export function CatalogPDF({ company, products }: { company: any; products: any[
           <View key={product.id} style={styles.productRow}>
             <Text style={styles.productName}>{product.name}</Text>
             <Text style={styles.specText}>{product.description}</Text>
-            {Object.entries(product.specs).slice(0, 4).map(([key, val]) => (
-              <Text key={key} style={styles.specText}>• {key}: {val}</Text>
-            ))}
+            {Object.entries(product.specs).map(([key, val]) => (
+  <Text key={key} style={styles.specText}>• {key}: {val}</Text>
+))}
           </View>
         ))}
         <Text style={styles.footer}>Generated via Showcase AI | {new Date().toLocaleDateString()}</Text>

@@ -441,5 +441,4 @@ function generateProducts() {
 }
 
 export const MOCK_PRODUCTS = generateProducts();
-
 export default { MOCK_COMPANY, MOCK_CATEGORIES, MOCK_PRODUCTS };
