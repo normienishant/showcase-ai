@@ -1,4 +1,4 @@
-// app/page.tsx — Best of Both + Enhancements
+// app/page.tsx — Fully Error-Handled, Production-Ready
 'use client';
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
@@ -60,15 +60,42 @@ function CatalogContent() {
     const loadData = async () => {
       setLoading(true);
       try {
-        const companyData = await api.getCompany('bpe');
+        // 1. Fetch company
+        let companyData;
+        try {
+          companyData = await api.getCompany('bpe');
+        } catch (e) {
+          console.error('Company fetch failed:', e);
+          toast.error('Failed to load company data');
+          setLoading(false);
+          return;
+        }
         setCompany(companyData);
-        const cats = await api.getCategories(companyData.id);
+
+        // 2. Fetch categories
+        let cats: any[] = [];
+        try {
+          cats = await api.getCategories(companyData.id);
+        } catch (e) {
+          console.error('Categories fetch failed:', e);
+          toast.error('Failed to load categories');
+        }
         setCategories(cats);
-        const prods = await api.getProducts(companyData.id);
+
+        // 3. Fetch products
+        let prods: any[] = [];
+        try {
+          prods = await api.getProducts(companyData.id);
+        } catch (e) {
+          console.error('Products fetch failed:', e);
+          toast.error('Failed to load products');
+        }
+        // Ensure prods is always an array
+        if (!Array.isArray(prods)) prods = [];
         setAllProducts(prods);
         setProducts(prods);
       } catch (error) {
-        console.error('Failed to load data', error);
+        console.error('Unexpected error:', error);
         toast.error('Failed to load catalog');
       } finally {
         setLoading(false);
@@ -80,10 +107,17 @@ function CatalogContent() {
   useEffect(() => {
     if (!company) return;
     const fetchFiltered = async () => {
-      const filtered = await api.getProducts(company.id, {
-        search: search,
-        categoryId: selectedCategory || undefined,
-      });
+      let filtered: any[] = [];
+      try {
+        filtered = await api.getProducts(company.id, {
+          search: search || undefined,
+          categoryId: selectedCategory || undefined,
+        });
+      } catch (e) {
+        console.error('Filtered products fetch failed:', e);
+        toast.error('Failed to apply filter');
+      }
+      if (!Array.isArray(filtered)) filtered = [];
       setProducts(filtered);
     };
     fetchFiltered();
@@ -146,7 +180,7 @@ function CatalogContent() {
 
   return (
     <div className="min-h-screen bg-white font-sans antialiased">
-      {/* ===== HEADER ===== */}
+      {/* HEADER — same as before */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -204,7 +238,7 @@ function CatalogContent() {
                                 {item.name}
                               </p>
                               <p className="text-xs text-slate-400 truncate">
-                                {Object.values(item.specs).slice(0, 2).join(' · ')}
+                                {Object.values(item.specs || {}).slice(0, 2).join(' · ')}
                               </p>
                             </div>
                             <button
@@ -262,7 +296,7 @@ function CatalogContent() {
                 </DialogContent>
               </Dialog>
 
-              {/* Mobile menu button — placeholder for future mobile navigation */}
+              {/* Mobile menu button */}
               <button
                 className="md:hidden text-slate-500 hover:text-slate-700 transition-colors p-2"
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -275,10 +309,9 @@ function CatalogContent() {
         </div>
       </header>
 
-      {/* ===== HERO — light, soft, premium ===== */}
+      {/* ===== HERO ===== */}
       <section className="relative py-16 px-4 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50/60 via-white to-slate-50" />
-        {/* Dot pattern — subtle opacity */}
         <div
           className="absolute inset-0 opacity-[0.9]"
           style={{
@@ -419,8 +452,9 @@ function CatalogContent() {
               {products.map((product) => {
                 const category = categories.find((c) => c.id === product.categoryId);
                 const isInWishlist = wishlist.isInWishlist(product.id);
-                const specs = Object.entries(product.specs).slice(0, 2);
-                const extraSpecs = Object.keys(product.specs).length - 2;
+                const specs = Object.entries(product.specs || {}).slice(0, 2);
+                const extraSpecs = Object.keys(product.specs || {}).length - 2;
+                const imageUrl = (product.images && product.images[0]) || 'https://placehold.co/600x400/1a56db/white?text=No+Image';
 
                 return (
                   <motion.div
@@ -436,7 +470,7 @@ function CatalogContent() {
                     <Link href={`/product/${product.id}`} className="block">
                       <div className="relative aspect-square bg-slate-50 overflow-hidden">
                         <img
-                          src={product.images[0]}
+                          src={imageUrl}
                           alt={product.name}
                           className="w-full h-full object-cover group-hover:scale-[1.05] transition-transform duration-300"
                         />
@@ -459,7 +493,7 @@ function CatalogContent() {
                         </h3>
                       </Link>
                       <p className="text-[13px] text-slate-500 line-clamp-2 mt-1 leading-relaxed">
-                        {product.description}
+                        {product.description || ''}
                       </p>
                       <div className="flex flex-wrap gap-1.5 mt-3">
                         {specs.map(([key, val]) => (
@@ -527,20 +561,20 @@ function CatalogContent() {
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-slate-50 rounded-xl overflow-hidden relative border border-slate-100">
                 <img
-                  src={selectedProduct.images[0]}
+                  src={(selectedProduct.images && selectedProduct.images[0]) || 'https://placehold.co/600x600/1a56db/white?text=No+Image'}
                   alt={selectedProduct.name}
                   className="w-full aspect-square object-cover"
                 />
               </div>
               <div>
                 <p className="text-sm text-slate-500 leading-relaxed">
-                  {selectedProduct.description}
+                  {selectedProduct.description || ''}
                 </p>
                 <h4 className="font-semibold mt-4 text-xs text-slate-400 uppercase tracking-wider">
                   Specifications
                 </h4>
                 <div className="mt-2 space-y-1 max-h-52 overflow-y-auto pr-1">
-                  {Object.entries(selectedProduct.specs).map(([key, val]) => (
+                  {Object.entries(selectedProduct.specs || {}).map(([key, val]) => (
                     <div
                       key={key}
                       className="flex justify-between text-sm border-b border-slate-100 py-1.5"
