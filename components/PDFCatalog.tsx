@@ -26,7 +26,7 @@ export function CatalogPDF({ company, products }: { company: any; products: any[
             <Text style={styles.productName}>{product.name}</Text>
             <Text style={styles.specText}>{product.description}</Text>
             {Object.entries(product.specs).map(([key, val]) => (
-  <Text key={key} style={styles.specText}>• {key}: {val}</Text>
+  <Text key={key} style={styles.specText}>• {key}: {val as string}</Text>
 ))}
           </View>
         ))}

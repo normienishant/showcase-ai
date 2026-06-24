@@ -93,7 +93,7 @@ function CatalogContent() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.submitLead({ ...leadForm, wishlist: wishlist.items });
+      await api.submitLead(company.id, { ...leadForm, wishlist_snapshot: wishlist.items });
       toast.success("Inquiry sent. We'll contact you soon.");
       setShowLeadModal(false);
       setLeadForm({ name: '', email: '', phone: '', message: '' });

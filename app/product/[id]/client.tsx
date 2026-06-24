@@ -44,7 +44,7 @@ export default function ClientProductDetail({ product, company }: { product: Pro
       try {
         const all = await api.getProducts(company.id);
         const related = all
-          .filter(p => p.categoryId === product.categoryId && p.id !== product.id)
+          .filter((p: Product) => p.categoryId === product.categoryId && p.id !== product.id)
           .slice(0, 4);
         setRelatedProducts(related);
       } catch (error) {
