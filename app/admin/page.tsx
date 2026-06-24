@@ -1,12 +1,12 @@
-// app/admin/page.tsx — Real Data + Authentication (HOOKS ORDER FIXED)
+// app/admin/page.tsx — Complete CRUD with Undo (Fully Fixed)
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Package, FolderTree, Users, Settings, LogOut,
   Search, Plus, Edit, Trash2, Eye, Download, TrendingUp, Clock,
-  Bell, User
+  Bell, User, X, Undo2, Loader2
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -15,10 +15,82 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
+// === Countdown Toast Component (Fully Fixed) ===
+function UndoToast({
+  productName,
+  onUndo,
+  onConfirm,
+}: {
+  productName: string;
+  onUndo: () => void;
+  onConfirm: () => void;
+}) {
+  const [progress, setProgress] = useState(100);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const confirmedRef = useRef(false);
+
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      setProgress((prev) => {
+        const newVal = prev - 10;
+        if (newVal <= 0) {
+          clearInterval(intervalRef.current!);
+          if (!confirmedRef.current) {
+            confirmedRef.current = true;
+            setTimeout(() => {
+              onConfirm();
+            }, 0);
+          }
+          return 0;
+        }
+        return newVal;
+      });
+    }, 1000);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [onConfirm]);
+
+  // Seconds = ceil(progress / 10) → 10, 9, 8, ..., 1, 0
+  const seconds = Math.ceil(progress / 10);
+
+  return (
+    <div className="bg-white rounded-lg shadow-xl border border-gray-200 p-3 w-full max-w-sm">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <span className="text-sm font-medium text-gray-800 flex-1 min-w-[100px]">
+          Deleted "{productName}"
+        </span>
+        <button
+          onClick={() => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            if (!confirmedRef.current) {
+              confirmedRef.current = true;
+              onUndo();
+            }
+          }}
+          className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-1 shrink-0"
+        >
+          <Undo2 className="h-4 w-4" /> Undo
+        </button>
+      </div>
+      <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden mt-1.5">
+        <div
+          className="h-full bg-blue-600 transition-all duration-1000 ease-linear"
+          style={{ width: `${Math.max(0, progress)}%` }}
+        />
+      </div>
+      <div className="text-xs text-gray-400 mt-1">
+        {Math.max(0, seconds)}s left
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
 
-  // ========== ALL HOOKS MUST BE AT THE TOP ==========
+  // ===== Hooks =====
   const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'categories' | 'leads' | 'branding'>('dashboard');
   const [loading, setLoading] = useState(true);
   const [company, setCompany] = useState<any>(null);
@@ -27,7 +99,22 @@ export default function AdminPage() {
   const [leads, setLeads] = useState<any[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Branding state (MOVED UP — before any conditional return)
+  // Modal states
+  const [showModal, setShowModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    categoryId: '',
+    specs: '',
+    images: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  // Pending deletions (visual feedback)
+  const [pendingDeletions, setPendingDeletions] = useState<Set<string>>(new Set());
+
+  // Branding
   const [branding, setBranding] = useState({
     logoUrl: 'https://placehold.co/200x80/1a56db/white?text=BPE',
     primaryColor: '#1a56db',
@@ -35,8 +122,7 @@ export default function AdminPage() {
     websiteUrl: 'https://www.bpe.com',
   });
 
-  // ========== ALL useEffects AT THE TOP ==========
-  // Auth check
+  // ===== Effects =====
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (!token) {
@@ -46,41 +132,6 @@ export default function AdminPage() {
     }
   }, [router]);
 
-  // Load data
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    // In the loadData function inside useEffect
-const loadData = async () => {
-  setLoading(true);
-  try {
-    const companyData = await api.getCompany('bpe');
-    setCompany(companyData);
-
-    const cats = await api.getCategories(companyData.id);
-    setCategories(cats);
-
-    const prods = await api.getProducts(companyData.id);
-    setProducts(prods);
-
-    const leadsData = await api.adminGetLeads(companyData.id);
-    setLeads(leadsData);
-  } catch (error: any) {
-    console.error('Failed to load admin data:', error);
-    // If 401, already handled by adminFetch (redirects to login)
-    // But if not handled, show toast
-    if (error?.status !== 401) {
-      toast.error('Failed to load dashboard data');
-    }
-  } finally {
-    setLoading(false);
-  }
-};
-
-    loadData();
-  }, [isAuthenticated]);
-
-  // Load branding from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('bpe-branding');
     if (saved) {
@@ -92,7 +143,36 @@ const loadData = async () => {
     }
   }, []);
 
-  // ========== FUNCTIONS ==========
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadData();
+    }
+  }, [isAuthenticated]);
+
+  // ===== Data Fetch =====
+  const loadData = async () => {
+    if (!isAuthenticated) return;
+    setLoading(true);
+    try {
+      const companyData = await api.getCompany('bpe');
+      setCompany(companyData);
+
+      const cats = await api.getCategories(companyData.id);
+      setCategories(cats);
+
+      const prods = await api.getProducts(companyData.id);
+      setProducts(prods);
+
+      const leadsData = await api.adminGetLeads(companyData.id);
+      setLeads(leadsData);
+    } catch (error) {
+      console.error('Failed to load admin data:', error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminUser');
@@ -100,12 +180,134 @@ const loadData = async () => {
     toast.info('Logged out');
   };
 
+  // ===== Product CRUD =====
+
+  const openModal = (product?: any) => {
+    if (product) {
+      setEditingProduct(product);
+      setFormData({
+        name: product.name || '',
+        description: product.description || '',
+        categoryId: product.categoryId || '',
+        specs: Object.entries(product.specs || {})
+          .map(([k, v]) => `${k}: ${v}`)
+          .join('\n'),
+        images: (product.images || []).join(', '),
+      });
+    } else {
+      setEditingProduct(null);
+      setFormData({
+        name: '',
+        description: '',
+        categoryId: '',
+        specs: '',
+        images: '',
+      });
+    }
+    setShowModal(true);
+  };
+
+  const saveProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const specsObj: Record<string, string> = {};
+      formData.specs.split('\n').forEach((line) => {
+        const [key, ...val] = line.split(':');
+        if (key && val.length) {
+          specsObj[key.trim()] = val.join(':').trim();
+        }
+      });
+
+      const imagesArr = formData.images.split(',').map((s) => s.trim()).filter(Boolean);
+
+      const data = {
+        name: formData.name,
+        description: formData.description,
+        categoryId: formData.categoryId,
+        specs: specsObj,
+        images: imagesArr,
+        isVisible: true,
+      };
+
+      if (editingProduct) {
+        await api.adminUpdateProduct(editingProduct.id, data);
+        toast.success('Product updated successfully!');
+      } else {
+        await api.adminCreateProduct(data);
+        toast.success('Product added successfully!');
+      }
+
+      setShowModal(false);
+      await loadData();
+    } catch (error: any) {
+      console.error('Save product failed:', error);
+      toast.error(error?.message || 'Failed to save product');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // === Delete with Undo + Countdown ===
+  const deleteProduct = async (product: any) => {
+    setPendingDeletions((prev) => new Set(prev).add(product.id));
+
+    let undoClicked = false;
+
+    toast.custom(
+      (t) => (
+        <UndoToast
+          productName={product.name}
+          onUndo={() => {
+            undoClicked = true;
+            setPendingDeletions((prev) => {
+              const newSet = new Set(prev);
+              newSet.delete(product.id);
+              return newSet;
+            });
+            toast.dismiss(t);
+            toast.success(`Restored "${product.name}"`);
+          }}
+          onConfirm={() => {
+            if (!undoClicked) {
+              setPendingDeletions((prev) => {
+                const newSet = new Set(prev);
+                newSet.delete(product.id);
+                return newSet;
+              });
+              toast.dismiss(t);
+              api.adminDeleteProduct(product.id)
+                .then(() => {
+                  toast.success(`Permanently deleted "${product.name}"`);
+                  loadData();
+                })
+                .catch((err) => {
+                  console.error('Delete failed:', err);
+                  toast.error('Failed to delete product');
+                });
+            }
+          }}
+        />
+      ),
+      {
+        duration: 10000,
+        onAutoClose: () => {
+          setPendingDeletions((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(product.id);
+            return newSet;
+          });
+        },
+      }
+    );
+  };
+
   const saveBranding = () => {
     localStorage.setItem('bpe-branding', JSON.stringify(branding));
     toast.success('Branding settings saved!');
   };
 
-  // ========== CONDITIONAL RENDER (AFTER ALL HOOKS) ==========
+  // ===== Conditional Render =====
   if (!isAuthenticated || loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-50">
@@ -117,18 +319,12 @@ const loadData = async () => {
     );
   }
 
+  // ===== UI constants =====
   const statusColors = {
     new: 'bg-yellow-100 text-yellow-700 border-yellow-200',
     reviewed: 'bg-blue-100 text-blue-700 border-blue-200',
     contacted: 'bg-green-100 text-green-700 border-green-200',
   };
-
-  const stats = [
-    { label: 'Total Products', value: products.length, icon: Package, color: 'blue' },
-    { label: 'Categories', value: categories.length, icon: FolderTree, color: 'green' },
-    { label: 'Leads', value: leads.length, icon: Users, color: 'yellow' },
-    { label: 'Conversion Rate', value: leads.length > 0 ? `${Math.round((leads.length / (leads.length + 10)) * 100)}%` : '0%', icon: TrendingUp, color: 'purple' },
-  ];
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -138,6 +334,14 @@ const loadData = async () => {
     { id: 'branding', label: 'Branding', icon: Settings },
   ];
 
+  const stats = [
+    { label: 'Total Products', value: products.length, icon: Package, color: 'blue' },
+    { label: 'Categories', value: categories.length, icon: FolderTree, color: 'green' },
+    { label: 'Leads', value: leads.length, icon: Users, color: 'yellow' },
+    { label: 'Conversion Rate', value: leads.length > 0 ? `${Math.round((leads.length / (leads.length + 10)) * 100)}%` : '0%', icon: TrendingUp, color: 'purple' },
+  ];
+
+  // ===== Render =====
   return (
     <div className="min-h-screen bg-slate-50/80 flex">
       {/* Sidebar */}
@@ -276,7 +480,7 @@ const loadData = async () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-400">{products.length} products</span>
-                  <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700">
+                  <Button size="sm" className="gap-2 bg-[#1e3a5f] hover:bg-[#16293f] text-white" onClick={() => openModal()}>
                     <Plus className="h-4 w-4" /> Add Product
                   </Button>
                 </div>
@@ -293,37 +497,68 @@ const loadData = async () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {products.slice(0, 8).map((p) => (
-                      <tr key={p.id} className="hover:bg-gray-50/60 transition-colors">
-                        <td className="px-5 py-3.5 font-medium text-gray-800">{p.name}</td>
-                        <td className="px-5 py-3.5 text-gray-500">
-                          {categories.find(c => c.id === p.categoryId)?.name || 'Uncategorized'}
-                        </td>
-                        <td className="px-5 py-3.5 text-gray-500 text-xs">
-                          {Object.keys(p.specs || {}).slice(0, 2).join(', ')}
-                          {Object.keys(p.specs || {}).length > 2 && ` +${Object.keys(p.specs || {}).length - 2}`}
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <Badge className="bg-green-100 text-green-700 border-green-200">Visible</Badge>
-                        </td>
-                        <td className="px-5 py-3.5 text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-100"><Eye className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-100"><Edit className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {products.slice(0, 20).map((p) => {
+                      const isPending = pendingDeletions.has(p.id);
+                      return (
+                        <tr
+                          key={p.id}
+                          className={`transition-all duration-300 ${
+                            isPending
+                              ? 'opacity-50 bg-red-50/20'
+                              : 'hover:bg-gray-50/60'
+                          }`}
+                        >
+                          <td className="px-5 py-3.5 font-medium text-gray-800 flex items-center gap-2">
+                            {isPending && <Loader2 className="h-4 w-4 text-red-500 animate-spin" />}
+                            <span>{p.name}</span>
+                          </td>
+                          <td className="px-5 py-3.5 text-gray-500">
+                            {categories.find(c => c.id === p.categoryId)?.name || 'Uncategorized'}
+                          </td>
+                          <td className="px-5 py-3.5 text-gray-500 text-xs">
+                            {Object.keys(p.specs || {}).slice(0, 2).join(', ')}
+                            {Object.keys(p.specs || {}).length > 2 && ` +${Object.keys(p.specs || {}).length - 2}`}
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <Badge className="bg-green-100 text-green-700 border-green-200">Visible</Badge>
+                          </td>
+                          <td className="px-5 py-3.5 text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 hover:bg-gray-100"
+                                onClick={() => openModal(p)}
+                                disabled={isPending}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`h-8 w-8 p-0 ${
+                                  isPending
+                                    ? 'text-gray-400 cursor-not-allowed'
+                                    : 'text-red-400 hover:text-red-600 hover:bg-red-50'
+                                }`}
+                                onClick={() => !isPending && deleteProduct(p)}
+                                disabled={isPending}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
               <div className="p-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-gray-400">Showing {Math.min(8, products.length)} of {products.length}</p>
+                <p className="text-sm text-gray-400">Showing {Math.min(20, products.length)} of {products.length}</p>
                 <div className="flex gap-1">
                   <Button variant="outline" size="sm" disabled>Previous</Button>
                   <Button variant="outline" size="sm" className="bg-blue-50 border-blue-200 text-blue-700">1</Button>
-                  <Button variant="outline" size="sm">2</Button>
                   <Button variant="outline" size="sm">Next</Button>
                 </div>
               </div>
@@ -335,7 +570,9 @@ const loadData = async () => {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-800">Category Tree</h3>
-                <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700"><Plus className="h-4 w-4" /> Add Category</Button>
+                <Button size="sm" className="gap-2 bg-[#1e3a5f] hover:bg-[#16293f] text-white">
+                  <Plus className="h-4 w-4" /> Add Category
+                </Button>
               </div>
               <ul className="space-y-2">
                 {categories.filter(c => c.parentId === null).map(cat => (
@@ -433,11 +670,112 @@ const loadData = async () => {
                   <Input value={branding.websiteUrl} onChange={(e) => setBranding({ ...branding, websiteUrl: e.target.value })} className="mt-1" />
                 </div>
               </div>
-              <Button className="bg-blue-600 hover:bg-blue-700 shadow-sm" onClick={saveBranding}>Save Changes</Button>
+              <Button className="bg-[#1e3a5f] hover:bg-[#16293f] text-white shadow-sm" onClick={saveBranding}>Save Changes</Button>
             </motion.div>
           )}
         </div>
       </main>
+
+      {/* Add/Edit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900">
+                {editingProduct ? 'Edit Product' : 'Add New Product'}
+              </h3>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={saveProduct} className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-slate-700 block mb-1">Product Name *</label>
+                <Input
+                  required
+                  placeholder="e.g., EPX+ 20kVA"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-slate-700 block mb-1">Description</label>
+                <Input
+                  placeholder="Brief description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-slate-700 block mb-1">Category *</label>
+                <select
+                  required
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent bg-white"
+                  value={formData.categoryId}
+                  onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                >
+                  <option value="">Select category...</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-slate-700 block mb-1">Specifications</label>
+                <textarea
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent bg-white font-mono text-sm"
+                  rows={4}
+                  placeholder="Capacity: 20kVA&#10;Efficiency: Up to 96.8%&#10;Input Voltage: 380/400/415 VAC"
+                  value={formData.specs}
+                  onChange={(e) => setFormData({ ...formData, specs: e.target.value })}
+                />
+                <p className="text-xs text-slate-400 mt-1">One spec per line: <span className="font-mono">key: value</span></p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-slate-700 block mb-1">Images (comma separated URLs)</label>
+                <Input
+                  placeholder="https://cloudinary.com/img1.jpg, https://cloudinary.com/img2.jpg"
+                  value={formData.images}
+                  onChange={(e) => setFormData({ ...formData, images: e.target.value })}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="submit"
+                  className="flex-1 bg-[#1e3a5f] hover:bg-[#16293f] text-white"
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <span className="flex items-center gap-2">
+                      <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                      Saving...
+                    </span>
+                  ) : (
+                    editingProduct ? 'Update Product' : 'Add Product'
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowModal(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

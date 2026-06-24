@@ -1,17 +1,18 @@
-// app/page.tsx — Complete Working Version
+// app/page.tsx — Hero Restored, Search in Hero, Throttled Dropdown Position
 'use client';
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Heart, MessageCircle, Trash2, Download, Eye,
-  XCircle, ArrowUp, Menu, X, Zap
+  XCircle, ArrowUp, Menu, X, Zap, Lightbulb
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useWishlist } from '@/store/wishlist';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { CatalogPDF } from '@/components/PDFCatalog';
+import { extractIntent, getMatchingSeries } from '@/lib/searchTags';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 const PDFDownloadLink = dynamic(
@@ -46,6 +47,10 @@ function CatalogContent() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [searchMode, setSearchMode] = useState<'product' | 'ai'>('product');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showModeSwitchHint, setShowModeSwitchHint] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [showLeadModal, setShowLeadModal] = useState(false);
@@ -53,6 +58,8 @@ function CatalogContent() {
   const [submitting, setSubmitting] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [searchInputRef, setSearchInputRef] = useState<HTMLInputElement | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
 
   const wishlist = useWishlist();
 
@@ -101,25 +108,92 @@ function CatalogContent() {
     loadData();
   }, []);
 
-  // Filter products locally based on search + category
+  // === THROTTLED DROPDOWN POSITIONING (viewport-relative) ===
   useEffect(() => {
-    if (!company) return;
+    if (!showDropdown || !searchInputRef) return;
 
-    // Helper: get category ID + all child IDs
-    const getCategoryIds = (catId: string): string[] => {
-      const result = [catId];
-      const childIds = categories
-        .filter(c => c.parentId === catId)
-        .map(c => c.id);
-      return [...result, ...childIds];
+    let frameId: number | null = null;
+    let throttleTimer: NodeJS.Timeout | null = null;
+
+    const updatePosition = () => {
+      if (!searchInputRef) return;
+      const rect = searchInputRef.getBoundingClientRect();
+
+      // Hide if input is completely out of view
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        setShowDropdown(false);
+        return;
+      }
+
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const dropdownHeight = 320; // max-h-80
+
+      let top = rect.bottom + 8;
+      // Flip upward if not enough space below
+      if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+        top = rect.top - dropdownHeight - 8;
+      }
+
+      setDropdownPosition({
+        top,
+        left: rect.left,
+        width: rect.width,
+      });
     };
 
-    const filterProducts = () => {
-      let filtered = allProducts;
+    const rafUpdate = () => {
+      if (frameId) cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(updatePosition);
+    };
 
-      // Search filter (name, description, specs)
-      if (search.trim()) {
-        const s = search.toLowerCase();
+    // Throttled version: at most once every 100ms
+    const throttledRafUpdate = () => {
+      if (throttleTimer) return;
+      throttleTimer = setTimeout(() => {
+        throttleTimer = null;
+        rafUpdate();
+      }, 100);
+    };
+
+    rafUpdate();
+    window.addEventListener('scroll', throttledRafUpdate, { passive: true });
+    window.addEventListener('resize', throttledRafUpdate, { passive: true });
+
+    return () => {
+      if (frameId) cancelAnimationFrame(frameId);
+      if (throttleTimer) clearTimeout(throttleTimer);
+      window.removeEventListener('scroll', throttledRafUpdate);
+      window.removeEventListener('resize', throttledRafUpdate);
+    };
+  }, [showDropdown, searchInputRef, search]);
+
+  // Helper: get category IDs (including children)
+  const getCategoryIds = (catId: string): string[] => {
+    const result = [catId];
+    const childIds = categories
+      .filter(c => c.parentId === catId)
+      .map(c => c.id);
+    return [...result, ...childIds];
+  };
+
+  // Detect if query looks like natural language (for mode switch hint)
+  const looksLikeNaturalLanguage = (query: string): boolean => {
+    const lower = query.toLowerCase();
+    const patterns = ['for', 'to', 'need', 'looking for', 'want', 'need a', 'have', 'with', 'without', '?'];
+    const isLongQuery = query.split(' ').length > 3;
+    const hasPattern = patterns.some(p => lower.includes(p));
+    return isLongQuery || hasPattern;
+  };
+
+  // === Main filter for product grid ===
+  const filterProducts = () => {
+    let filtered = allProducts;
+
+    if (search.trim()) {
+      const s = search.toLowerCase();
+
+      if (searchMode === 'product') {
         filtered = filtered.filter(p =>
           p.name.toLowerCase().includes(s) ||
           p.description?.toLowerCase().includes(s) ||
@@ -127,21 +201,200 @@ function CatalogContent() {
             String(v).toLowerCase().includes(s)
           )
         );
-      }
+        if (filtered.length === 0 && looksLikeNaturalLanguage(search)) {
+          setShowModeSwitchHint(true);
+        } else {
+          setShowModeSwitchHint(false);
+        }
+      } else {
+        const intents = extractIntent(search);
+        const matchingSeries = getMatchingSeries(intents);
+        const isAISearch = intents.length > 0;
 
-      // Category filter (parent includes children)
-      if (selectedCategory) {
-        const allowedIds = getCategoryIds(selectedCategory);
-        filtered = filtered.filter(p =>
-          allowedIds.includes(p.categoryId)
+        const nameMatch = allProducts.filter(p =>
+          p.name.toLowerCase().startsWith(s)
         );
+        const containsMatch = allProducts.filter(p =>
+          p.name.toLowerCase().includes(s) && !p.name.toLowerCase().startsWith(s)
+        );
+        const descMatch = allProducts.filter(p =>
+          (p.description?.toLowerCase().includes(s) ||
+          Object.values(p.specs || {}).some(v =>
+            String(v).toLowerCase().includes(s)
+          )) &&
+          !p.name.toLowerCase().includes(s)
+        );
+
+        let intentMatch: any[] = [];
+        if (isAISearch) {
+          const matchedProducts = allProducts.filter(p => {
+            const productName = p.name.toLowerCase();
+            const category = categories.find(c => c.id === p.categoryId);
+            const categoryName = category?.name?.toLowerCase() || '';
+            for (const series of matchingSeries) {
+              if (productName.includes(series.toLowerCase()) ||
+                  categoryName.includes(series.toLowerCase())) {
+                return true;
+              }
+            }
+            return false;
+          });
+          const existingIds = new Set([
+            ...nameMatch,
+            ...containsMatch,
+            ...descMatch,
+          ].map(p => p.id));
+          intentMatch = matchedProducts.filter(p => !existingIds.has(p.id));
+        }
+
+        let combined = [...nameMatch, ...containsMatch, ...descMatch, ...intentMatch];
+        const unique = combined.filter((p, index, self) =>
+          index === self.findIndex((t) => t.id === p.id)
+        );
+
+        const scored = unique.map(p => {
+          let score = 0;
+          const nameLower = p.name.toLowerCase();
+          if (nameLower.startsWith(s)) score += 100;
+          else if (nameLower.includes(s)) score += 50;
+          if (isAISearch) {
+            for (const series of matchingSeries) {
+              if (nameLower.includes(series.toLowerCase())) {
+                score += 30;
+                break;
+              }
+            }
+          }
+          return { ...p, score };
+        });
+        scored.sort((a, b) => b.score - a.score);
+        filtered = scored;
+        setShowModeSwitchHint(false);
+      }
+    } else {
+      filtered = allProducts;
+      setShowModeSwitchHint(false);
+    }
+
+    if (selectedCategory) {
+      const allowedIds = getCategoryIds(selectedCategory);
+      filtered = filtered.filter(p =>
+        allowedIds.includes(p.categoryId)
+      );
+    }
+
+    setProducts(filtered);
+  };
+
+  // Run filter whenever search, mode, category, or products change
+  useEffect(() => {
+    filterProducts();
+  }, [search, searchMode, selectedCategory, allProducts, categories]);
+
+  // Handle search input change with dropdown
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearch(value);
+    setShowModeSwitchHint(false);
+
+    if (value.trim().length === 0) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    let results: any[] = [];
+
+    if (searchMode === 'product') {
+      const s = value.toLowerCase();
+      results = allProducts.filter(p =>
+        p.name.toLowerCase().includes(s) ||
+        p.description?.toLowerCase().includes(s) ||
+        Object.values(p.specs || {}).some(v =>
+          String(v).toLowerCase().includes(s)
+        )
+      );
+      results = results.map(p => {
+        const nameLower = p.name.toLowerCase();
+        let score = 0;
+        if (nameLower.startsWith(s)) score = 100;
+        else if (nameLower.includes(s)) score = 50;
+        return { ...p, score };
+      });
+      results.sort((a, b) => b.score - a.score);
+    } else {
+      const s = value.toLowerCase();
+      const intents = extractIntent(value);
+      const matchingSeries = getMatchingSeries(intents);
+      const isAISearch = intents.length > 0;
+
+      const nameMatch = allProducts.filter(p => p.name.toLowerCase().startsWith(s));
+      const containsMatch = allProducts.filter(p =>
+        p.name.toLowerCase().includes(s) && !p.name.toLowerCase().startsWith(s)
+      );
+      const descMatch = allProducts.filter(p =>
+        (p.description?.toLowerCase().includes(s) ||
+        Object.values(p.specs || {}).some(v =>
+          String(v).toLowerCase().includes(s)
+        )) &&
+        !p.name.toLowerCase().includes(s)
+      );
+
+      let intentMatch: any[] = [];
+      if (isAISearch) {
+        const matchedProducts = allProducts.filter(p => {
+          const productName = p.name.toLowerCase();
+          const category = categories.find(c => c.id === p.categoryId);
+          const categoryName = category?.name?.toLowerCase() || '';
+          for (const series of matchingSeries) {
+            if (productName.includes(series.toLowerCase()) ||
+                categoryName.includes(series.toLowerCase())) {
+              return true;
+            }
+          }
+          return false;
+        });
+        const existingIds = new Set([
+          ...nameMatch,
+          ...containsMatch,
+          ...descMatch,
+        ].map(p => p.id));
+        intentMatch = matchedProducts.filter(p => !existingIds.has(p.id));
       }
 
-      setProducts(filtered);
-    };
+      let combined = [...nameMatch, ...containsMatch, ...descMatch, ...intentMatch];
+      const unique = combined.filter((p, index, self) =>
+        index === self.findIndex((t) => t.id === p.id)
+      );
+      const scored = unique.map(p => {
+        let score = 0;
+        const nameLower = p.name.toLowerCase();
+        if (nameLower.startsWith(s)) score = 100;
+        else if (nameLower.includes(s)) score = 50;
+        if (isAISearch) {
+          for (const series of matchingSeries) {
+            if (nameLower.includes(series.toLowerCase())) {
+              score += 30;
+              break;
+            }
+          }
+        }
+        return { ...p, score };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      results = scored;
+    }
 
-    filterProducts();
-  }, [search, selectedCategory, allProducts, categories, company]);
+    setSearchResults(results.slice(0, 8));
+    setShowDropdown(true);
+  };
+
+  // Switch to AI mode
+  const switchToAIMode = () => {
+    setSearchMode('ai');
+    setShowModeSwitchHint(false);
+    setTimeout(() => filterProducts(), 100);
+  };
 
   const handleSubmitLead = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -328,7 +581,7 @@ function CatalogContent() {
         </div>
       </header>
 
-      {/* ===== HERO ===== */}
+      {/* ===== HERO SECTION ===== */}
       <section className="relative py-16 px-4 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50/60 via-white to-slate-50" />
         <div
@@ -372,31 +625,166 @@ function CatalogContent() {
             and send an inquiry in one place.
           </motion.p>
 
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.35 }}
-            className="mt-8 max-w-xl mx-auto relative"
-          >
+          {/* ===== MODE TOGGLE + SEARCH INPUT ===== */}
+          <div className="mt-6 flex justify-center gap-2">
+            <button
+              onClick={() => setSearchMode('product')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-full transition-all ${
+                searchMode === 'product'
+                  ? 'bg-[#1e3a5f] text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              🔍 Product Search
+            </button>
+            <button
+              onClick={() => setSearchMode('ai')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-full transition-all ${
+                searchMode === 'ai'
+                  ? 'bg-[#1e3a5f] text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              ✨ AI Search
+            </button>
+          </div>
+
+          <div className="mt-4 max-w-xl mx-auto relative">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input
+              ref={(el) => setSearchInputRef(el)}
               type="text"
-              placeholder="Search by model, kVA rating, or category..."
+              placeholder={
+                searchMode === 'product'
+                  ? "Search by model, kVA rating, or category..."
+                  : "Describe your power needs (e.g., UPS for 20 computers)..."
+              }
               className="w-full pl-14 pr-12 py-4 text-base bg-white border border-slate-200 focus:border-slate-300 rounded-2xl shadow-lg shadow-slate-200/30 outline-none transition-colors"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={handleSearchChange}
+              onFocus={() => {
+                if (search.trim().length > 0 && searchResults.length > 0) {
+                  setShowDropdown(true);
+                }
+              }}
             />
             {search && (
               <button
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                onClick={() => setSearch('')}
+                onClick={() => {
+                  setSearch('');
+                  setSearchResults([]);
+                  setShowDropdown(false);
+                  setShowModeSwitchHint(false);
+                }}
               >
                 <XCircle className="h-5 w-5" />
               </button>
             )}
-          </motion.div>
+          </div>
+
+          {/* AI Search Hint */}
+          {searchMode === 'ai' && (
+            <p className="mt-2 text-xs text-slate-400 flex items-center justify-center gap-1.5">
+              <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+              Try: "office UPS for 10 computers" or "solar battery storage"
+            </p>
+          )}
+
+          {/* Mode Switch Hint */}
+          {showModeSwitchHint && searchMode === 'product' && search.trim() && (
+            <div className="mt-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 inline-flex items-center gap-2">
+              <Lightbulb className="h-4 w-4" />
+              <span>
+                It looks like you're describing a need.
+                <button
+                  onClick={switchToAIMode}
+                  className="ml-1.5 font-semibold text-blue-600 hover:text-blue-800 underline underline-offset-2"
+                >
+                  Try AI Search →
+                </button>
+              </span>
+            </div>
+          )}
         </div>
       </section>
+
+      {/* ===== SEARCH DROPDOWN ===== */}
+      {showDropdown && searchResults.length > 0 && (
+        <div
+          className="fixed z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-80 overflow-y-auto will-change-transform"
+          style={{
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            width: dropdownPosition.width || 'auto',
+            minWidth: '300px',
+          }}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {searchResults.map((product) => {
+            const category = categories.find(c => c.id === product.categoryId);
+            const imageUrl = (product.images && product.images[0]) || 'https://placehold.co/600x400/1a56db/white?text=No+Image';
+            const isNameMatch = product.name.toLowerCase().startsWith(search.toLowerCase());
+            const isAIMatch = searchMode === 'ai' && !isNameMatch && (product.score || 0) > 20;
+
+            return (
+              <Link
+                key={product.id}
+                href={`/product/${product.id}`}
+                className={`flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 ${
+                  isNameMatch ? 'bg-blue-50/30' : ''
+                }`}
+                onClick={() => {
+                  setShowDropdown(false);
+                  setSearch(product.name);
+                }}
+              >
+                <img
+                  src={imageUrl}
+                  alt={product.name}
+                  className="w-12 h-12 object-cover rounded-lg bg-slate-50"
+                />
+                <div className="flex-1 text-left min-w-0">
+                  <p className="text-sm font-medium text-slate-800 truncate">
+                    {product.name}
+                    {isNameMatch && (
+                      <span className="ml-2 text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">Best match</span>
+                    )}
+                    {isAIMatch && (
+                      <span className="ml-2 text-[10px] text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full">AI match</span>
+                    )}
+                    {searchMode === 'product' && !isNameMatch && (
+                      <span className="ml-2 text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">Product</span>
+                    )}
+                  </p>
+                  <p className="text-xs text-slate-400 truncate">{product.description}</p>
+                </div>
+                {category && (
+                  <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded-full whitespace-nowrap">
+                    {category.name}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+
+      {showDropdown && search.trim().length > 0 && searchResults.length === 0 && (
+        <div
+          className="fixed z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 text-center text-sm text-slate-400"
+          style={{
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            width: dropdownPosition.width || 'auto',
+            minWidth: '300px',
+          }}
+        >
+          {searchMode === 'product'
+            ? `No exact product found for "${search}". Try describing your need with AI Search`
+            : `No products found for "${search}". Try different keywords.`}
+        </div>
+      )}
 
       {/* ===== CATEGORY TABS ===== */}
       <div className="sticky top-16 z-40 bg-white/90 backdrop-blur-sm border-b border-slate-100">
@@ -445,9 +833,15 @@ function CatalogContent() {
         {products.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
             <Search className="h-12 w-12 mb-4 stroke-1" />
-            <p className="text-lg font-medium text-slate-600">No products found</p>
+            <p className="text-lg font-medium text-slate-600">
+              {search.trim() ? 'No products found' : 'Start searching to find products'}
+            </p>
             <p className="text-sm text-slate-400 mt-1">
-              Try a different search term or category
+              {search.trim()
+                ? searchMode === 'product'
+                  ? 'Try describing your need with ✨ AI Search instead'
+                  : 'Try different keywords or switch to Product Search'
+                : 'Use the search bar above to explore our catalog'}
             </p>
           </div>
         ) : (
@@ -455,6 +849,9 @@ function CatalogContent() {
             <p className="text-sm text-slate-400 mb-5">
               <span className="font-medium text-slate-700">{products.length}</span> products
               {selectedCategory && <span className="ml-1">in this category</span>}
+              {searchMode === 'ai' && search.trim() && (
+                <span className="ml-2 text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full text-xs">AI search</span>
+              )}
             </p>
             <motion.div
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
