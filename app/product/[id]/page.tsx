@@ -1,6 +1,6 @@
 // app/product/[id]/page.tsx
 import { notFound } from 'next/navigation';
-import { mockApi } from '@/lib/mockApi';
+import { api } from '@/lib/api';
 import { Metadata } from 'next';
 import ClientProductDetail from './client';
 
@@ -8,7 +8,7 @@ import ClientProductDetail from './client';
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   try {
-    const product = await mockApi.getProduct(id);
+    const product = await api.getProduct(id);
     return {
       title: `${product.name} | BPE Product Catalog`,
       description: product.description,
@@ -33,8 +33,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   let company;
 
   try {
-    product = await mockApi.getProduct(id);
-    company = await mockApi.getCompany('bpe');
+    product = await api.getProduct(id);
+    company = await api.getCompany('bpe');
   } catch (error) {
     notFound();
   }

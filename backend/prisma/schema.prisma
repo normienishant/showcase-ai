@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model Company {
+  id              String     @id @default(cuid())
+  name            String
+  slug            String     @unique
+  primaryColor    String?
+  logoUrl         String?
+  whatsappNumber  String?
+  websiteUrl      String?
+  categories      Category[]
+  products        Product[]
+  leads           Lead[]
+  admins          Admin[]
+  createdAt       DateTime   @default(now())
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    Category?  @relation("SubCategories", fields: [parentId], references: [id])
+  children  Category[] @relation("SubCategories")
+  products  Product[]
+  companyId String
+  company   Company    @relation(fields: [companyId], references: [id])
+  sortOrder Int        @default(0)
+  createdAt DateTime   @default(now())
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  specs       Json?
+  images      Json?
+  documents   Json?
+  isVisible   Boolean  @default(true)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Lead {
+  id               String   @id @default(cuid())
+  name             String
+  email            String
+  phone            String?
+  message          String?
+  wishlistSnapshot Json?
+  status           String   @default("new")
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id])
+  createdAt        DateTime @default(now())
+}

@@ -1,13 +1,14 @@
-// app/admin/page.tsx — Complete with Branding Functional
+// app/admin/page.tsx — Real Data + Authentication (HOOKS ORDER FIXED)
 'use client';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Package, FolderTree, Users, Settings, LogOut,
   Search, Plus, Edit, Trash2, Eye, Download, TrendingUp, Clock,
-  Bell, User, MoreVertical
+  Bell, User
 } from 'lucide-react';
-import { MOCK_PRODUCTS, MOCK_CATEGORIES } from '@/lib/mockData';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,17 +16,18 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'categories' | 'leads' | 'branding'>('dashboard');
-  const [products] = useState(MOCK_PRODUCTS);
-  const [categories] = useState(MOCK_CATEGORIES);
-  const [leads] = useState([
-    { id: 'l1', name: 'Rahul Sharma', email: 'rahul@example.com', phone: '+919876543210', status: 'new', date: '2026-06-18' },
-    { id: 'l2', name: 'Priya Patel', email: 'priya@example.com', phone: '+919876543211', status: 'reviewed', date: '2026-06-17' },
-    { id: 'l3', name: 'Amit Kumar', email: 'amit@example.com', phone: '+919876543212', status: 'contacted', date: '2026-06-16' },
-    { id: 'l4', name: 'Sneha Reddy', email: 'sneha@example.com', phone: '+919876543213', status: 'new', date: '2026-06-15' },
-  ]);
+  const router = useRouter();
 
-  // Branding State with localStorage
+  // ========== ALL HOOKS MUST BE AT THE TOP ==========
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'categories' | 'leads' | 'branding'>('dashboard');
+  const [loading, setLoading] = useState(true);
+  const [company, setCompany] = useState<any>(null);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [leads, setLeads] = useState<any[]>([]);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Branding state (MOVED UP — before any conditional return)
   const [branding, setBranding] = useState({
     logoUrl: 'https://placehold.co/200x80/1a56db/white?text=BPE',
     primaryColor: '#1a56db',
@@ -33,7 +35,52 @@ export default function AdminPage() {
     websiteUrl: 'https://www.bpe.com',
   });
 
-  // Load branding from localStorage on mount
+  // ========== ALL useEffects AT THE TOP ==========
+  // Auth check
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) {
+      router.push('/admin/login');
+    } else {
+      setIsAuthenticated(true);
+    }
+  }, [router]);
+
+  // Load data
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // In the loadData function inside useEffect
+const loadData = async () => {
+  setLoading(true);
+  try {
+    const companyData = await api.getCompany('bpe');
+    setCompany(companyData);
+
+    const cats = await api.getCategories(companyData.id);
+    setCategories(cats);
+
+    const prods = await api.getProducts(companyData.id);
+    setProducts(prods);
+
+    const leadsData = await api.adminGetLeads(companyData.id);
+    setLeads(leadsData);
+  } catch (error: any) {
+    console.error('Failed to load admin data:', error);
+    // If 401, already handled by adminFetch (redirects to login)
+    // But if not handled, show toast
+    if (error?.status !== 401) {
+      toast.error('Failed to load dashboard data');
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+
+    loadData();
+  }, [isAuthenticated]);
+
+  // Load branding from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('bpe-branding');
     if (saved) {
@@ -45,24 +92,43 @@ export default function AdminPage() {
     }
   }, []);
 
-  // Save branding to localStorage
+  // ========== FUNCTIONS ==========
+  const handleLogout = () => {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminUser');
+    router.push('/admin/login');
+    toast.info('Logged out');
+  };
+
   const saveBranding = () => {
     localStorage.setItem('bpe-branding', JSON.stringify(branding));
     toast.success('Branding settings saved!');
   };
 
-  const stats = [
-    { label: 'Total Products', value: products.length, icon: Package, color: 'blue', trend: '+12%' },
-    { label: 'Categories', value: categories.length, icon: FolderTree, color: 'green', trend: '+2%' },
-    { label: 'Leads', value: leads.length, icon: Users, color: 'yellow', trend: '+5%' },
-    { label: 'Conversion Rate', value: '12%', icon: TrendingUp, color: 'purple', trend: '+3%' },
-  ];
+  // ========== CONDITIONAL RENDER (AFTER ALL HOOKS) ==========
+  if (!isAuthenticated || loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-4 border-[#1e3a5f] border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-slate-500">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   const statusColors = {
     new: 'bg-yellow-100 text-yellow-700 border-yellow-200',
     reviewed: 'bg-blue-100 text-blue-700 border-blue-200',
     contacted: 'bg-green-100 text-green-700 border-green-200',
   };
+
+  const stats = [
+    { label: 'Total Products', value: products.length, icon: Package, color: 'blue' },
+    { label: 'Categories', value: categories.length, icon: FolderTree, color: 'green' },
+    { label: 'Leads', value: leads.length, icon: Users, color: 'yellow' },
+    { label: 'Conversion Rate', value: leads.length > 0 ? `${Math.round((leads.length / (leads.length + 10)) * 100)}%` : '0%', icon: TrendingUp, color: 'purple' },
+  ];
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -73,7 +139,7 @@ export default function AdminPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50/80 flex">
+    <div className="min-h-screen bg-slate-50/80 flex">
       {/* Sidebar */}
       <motion.aside
         initial={{ x: -280, opacity: 0 }}
@@ -106,15 +172,16 @@ export default function AdminPage() {
               >
                 <Icon className={`h-4 w-4 ${isActive ? 'text-blue-400' : ''}`} />
                 <span>{item.label}</span>
-                {isActive && (
-                  <span className="ml-auto w-1.5 h-1.5 bg-blue-400 rounded-full" />
-                )}
+                {isActive && <span className="ml-auto w-1.5 h-1.5 bg-blue-400 rounded-full" />}
               </button>
             );
           })}
         </nav>
         <div className="p-4 border-t border-gray-800/60">
-          <button className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm text-red-400 hover:bg-red-500/10 transition-all duration-200">
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm text-red-400 hover:bg-red-500/10 transition-all duration-200"
+          >
             <LogOut className="h-4 w-4" />
             Logout
           </button>
@@ -123,7 +190,6 @@ export default function AdminPage() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
-        {/* Top Bar */}
         <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200/60 sticky top-0 z-10 px-6 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-gray-800 capitalize">{activeTab}</h2>
@@ -135,9 +201,7 @@ export default function AdminPage() {
               <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
             </button>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                A
-              </div>
+              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">A</div>
               <span className="text-sm font-medium text-gray-700 hidden sm:block">Admin</span>
             </div>
           </div>
@@ -146,11 +210,7 @@ export default function AdminPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Dashboard */}
           {activeTab === 'dashboard' && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-6"
-            >
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {stats.map((stat, idx) => {
                   const Icon = stat.icon;
@@ -177,10 +237,6 @@ export default function AdminPage() {
                           <p className="text-sm text-gray-400">{stat.label}</p>
                         </div>
                       </div>
-                      <div className="mt-3 text-xs text-green-600 flex items-center gap-1">
-                        <TrendingUp className="h-3 w-3" />
-                        {stat.trend} from last month
-                      </div>
                     </motion.div>
                   );
                 })}
@@ -189,23 +245,21 @@ export default function AdminPage() {
               <Card className="border-0 shadow-sm">
                 <CardContent className="p-6">
                   <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-gray-400" />
-                    Recent Activity
+                    <Clock className="h-4 w-4 text-gray-400" /> Recent Activity
                   </h3>
                   <div className="space-y-3">
-                    {[
-                      { action: 'New lead from Rahul Sharma', time: '10 minutes ago', status: 'New' },
-                      { action: 'Product EPX+ 33200L32 updated', time: '1 hour ago', status: 'Updated' },
-                      { action: 'New category "Data Center" added', time: '3 hours ago', status: 'Added' },
-                    ].map((item, i) => (
+                    {leads.slice(0, 3).map((lead, i) => (
                       <div key={i} className="flex items-center justify-between text-sm border-b border-gray-100 pb-2 last:border-0">
                         <div>
-                          <p className="font-medium text-gray-800">{item.action}</p>
-                          <p className="text-xs text-gray-400">{item.time}</p>
+                          <p className="font-medium text-gray-800">New lead from {lead.name}</p>
+                          <p className="text-xs text-gray-400">{new Date(lead.createdAt).toLocaleString()}</p>
                         </div>
-                        <Badge className="bg-blue-50 text-blue-700 border-blue-200">{item.status}</Badge>
+                        <Badge className={statusColors[lead.status as keyof typeof statusColors] || 'bg-gray-100'}>
+                          {lead.status}
+                        </Badge>
                       </div>
                     ))}
+                    {leads.length === 0 && <p className="text-sm text-gray-400">No leads yet.</p>}
                   </div>
                 </CardContent>
               </Card>
@@ -214,11 +268,7 @@ export default function AdminPage() {
 
           {/* Products */}
           {activeTab === 'products' && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden"
-            >
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden">
               <div className="p-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
                 <div className="relative flex-1 max-w-sm">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -250,8 +300,8 @@ export default function AdminPage() {
                           {categories.find(c => c.id === p.categoryId)?.name || 'Uncategorized'}
                         </td>
                         <td className="px-5 py-3.5 text-gray-500 text-xs">
-                          {Object.keys(p.specs).slice(0, 2).join(', ')}
-                          {Object.keys(p.specs).length > 2 && ` +${Object.keys(p.specs).length - 2}`}
+                          {Object.keys(p.specs || {}).slice(0, 2).join(', ')}
+                          {Object.keys(p.specs || {}).length > 2 && ` +${Object.keys(p.specs || {}).length - 2}`}
                         </td>
                         <td className="px-5 py-3.5">
                           <Badge className="bg-green-100 text-green-700 border-green-200">Visible</Badge>
@@ -282,16 +332,10 @@ export default function AdminPage() {
 
           {/* Categories */}
           {activeTab === 'categories' && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-6"
-            >
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-800">Category Tree</h3>
-                <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700">
-                  <Plus className="h-4 w-4" /> Add Category
-                </Button>
+                <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700"><Plus className="h-4 w-4" /> Add Category</Button>
               </div>
               <ul className="space-y-2">
                 {categories.filter(c => c.parentId === null).map(cat => (
@@ -306,8 +350,7 @@ export default function AdminPage() {
                     <ul className="ml-8 space-y-1">
                       {categories.filter(c => c.parentId === cat.id).map(sub => (
                         <li key={sub.id} className="flex items-center gap-2 py-1 text-sm text-gray-600">
-                          <span className="w-2 h-2 bg-gray-300 rounded-full" />
-                          {sub.name}
+                          <span className="w-2 h-2 bg-gray-300 rounded-full" /> {sub.name}
                         </li>
                       ))}
                     </ul>
@@ -319,19 +362,13 @@ export default function AdminPage() {
 
           {/* Leads */}
           {activeTab === 'leads' && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden"
-            >
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden">
               <div className="p-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
                 <div className="relative flex-1 max-w-sm">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input placeholder="Search leads..." className="pl-9 h-10 text-sm" />
                 </div>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Download className="h-4 w-4" /> Export CSV
-                </Button>
+                <Button variant="outline" size="sm" className="gap-2"><Download className="h-4 w-4" /> Export CSV</Button>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -352,75 +389,51 @@ export default function AdminPage() {
                         <td className="px-5 py-3.5 text-gray-500">{lead.email}</td>
                         <td className="px-5 py-3.5 text-gray-500">{lead.phone}</td>
                         <td className="px-5 py-3.5">
-                          <Badge className={`${statusColors[lead.status as keyof typeof statusColors]}`}>
+                          <Badge className={statusColors[lead.status as keyof typeof statusColors] || 'bg-gray-100'}>
                             {lead.status}
                           </Badge>
                         </td>
-                        <td className="px-5 py-3.5 text-gray-500 text-xs">{lead.date}</td>
+                        <td className="px-5 py-3.5 text-gray-500 text-xs">{new Date(lead.createdAt).toLocaleDateString()}</td>
                         <td className="px-5 py-3.5 text-right">
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-100"><Eye className="h-4 w-4" /></Button>
                         </td>
                       </tr>
                     ))}
+                    {leads.length === 0 && (
+                      <tr><td colSpan={6} className="text-center py-8 text-gray-400">No leads submitted yet.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
             </motion.div>
           )}
 
-          {/* Branding — Functional with localStorage */}
+          {/* Branding */}
           {activeTab === 'branding' && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-6 space-y-6"
-            >
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-6 space-y-6">
               <h3 className="font-semibold text-gray-800 text-lg">Branding Settings</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="text-sm font-medium text-gray-700">Logo URL</label>
-                  <Input
-                    placeholder="https://..."
-                    value={branding.logoUrl}
-                    onChange={(e) => setBranding({ ...branding, logoUrl: e.target.value })}
-                    className="mt-1"
-                  />
+                  <Input value={branding.logoUrl} onChange={(e) => setBranding({ ...branding, logoUrl: e.target.value })} className="mt-1" />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">Primary Color</label>
                   <div className="flex items-center gap-3 mt-1">
-                    <Input
-                      type="text"
-                      value={branding.primaryColor}
-                      onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
-                      className="flex-1"
-                    />
-                    <div
-                      className="w-10 h-10 rounded-full border-2 border-gray-200"
-                      style={{ backgroundColor: branding.primaryColor }}
-                    />
+                    <Input type="text" value={branding.primaryColor} onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })} className="flex-1" />
+                    <div className="w-10 h-10 rounded-full border-2 border-gray-200" style={{ backgroundColor: branding.primaryColor }} />
                   </div>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">WhatsApp Number</label>
-                  <Input
-                    value={branding.whatsappNumber}
-                    onChange={(e) => setBranding({ ...branding, whatsappNumber: e.target.value })}
-                    className="mt-1"
-                  />
+                  <Input value={branding.whatsappNumber} onChange={(e) => setBranding({ ...branding, whatsappNumber: e.target.value })} className="mt-1" />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">Website URL</label>
-                  <Input
-                    value={branding.websiteUrl}
-                    onChange={(e) => setBranding({ ...branding, websiteUrl: e.target.value })}
-                    className="mt-1"
-                  />
+                  <Input value={branding.websiteUrl} onChange={(e) => setBranding({ ...branding, websiteUrl: e.target.value })} className="mt-1" />
                 </div>
               </div>
-              <Button className="bg-blue-600 hover:bg-blue-700 shadow-sm" onClick={saveBranding}>
-                Save Changes
-              </Button>
+              <Button className="bg-blue-600 hover:bg-blue-700 shadow-sm" onClick={saveBranding}>Save Changes</Button>
             </motion.div>
           )}
         </div>

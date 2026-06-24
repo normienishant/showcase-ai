@@ -7,7 +7,7 @@ import {
   Search, Heart, MessageCircle, Trash2, Download, Eye,
   XCircle, ArrowUp, Menu, X, Zap
 } from 'lucide-react';
-import { mockApi } from '@/lib/mockApi';
+import { api } from '@/lib/api';
 import { useWishlist } from '@/store/wishlist';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
@@ -60,11 +60,11 @@ function CatalogContent() {
     const loadData = async () => {
       setLoading(true);
       try {
-        const companyData = await mockApi.getCompany('bpe');
+        const companyData = await api.getCompany('bpe');
         setCompany(companyData);
-        const cats = await mockApi.getCategories(companyData.id);
+        const cats = await api.getCategories(companyData.id);
         setCategories(cats);
-        const prods = await mockApi.getProducts(companyData.id);
+        const prods = await api.getProducts(companyData.id);
         setAllProducts(prods);
         setProducts(prods);
       } catch (error) {
@@ -80,7 +80,7 @@ function CatalogContent() {
   useEffect(() => {
     if (!company) return;
     const fetchFiltered = async () => {
-      const filtered = await mockApi.getProducts(company.id, {
+      const filtered = await api.getProducts(company.id, {
         search: search,
         categoryId: selectedCategory || undefined,
       });
@@ -93,7 +93,7 @@ function CatalogContent() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await mockApi.submitLead({ ...leadForm, wishlist: wishlist.items });
+      await api.submitLead({ ...leadForm, wishlist: wishlist.items });
       toast.success("Inquiry sent. We'll contact you soon.");
       setShowLeadModal(false);
       setLeadForm({ name: '', email: '', phone: '', message: '' });

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, MessageCircle, Share2, ArrowLeft, Check, ZoomIn, X, ChevronLeft, ChevronRight, Clock, Tag, Package, Ruler, Weight, Zap } from 'lucide-react';
 import { useWishlist } from '@/store/wishlist';
 import { toast } from 'sonner';
-import { mockApi } from '@/lib/mockApi';
+import { api } from '@/lib/api';
 
 interface Product {
   id: string;
@@ -42,7 +42,7 @@ export default function ClientProductDetail({ product, company }: { product: Pro
   useEffect(() => {
     const fetchRelated = async () => {
       try {
-        const all = await mockApi.getProducts(company.id);
+        const all = await api.getProducts(company.id);
         const related = all
           .filter(p => p.categoryId === product.categoryId && p.id !== product.id)
           .slice(0, 4);
