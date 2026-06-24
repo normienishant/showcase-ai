@@ -1,4 +1,4 @@
-// app/page.tsx — Fully Error-Handled, Production-Ready
+// app/page.tsx — Complete Working Version
 'use client';
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
@@ -56,11 +56,11 @@ function CatalogContent() {
 
   const wishlist = useWishlist();
 
+  // Load data from backend (only once)
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       try {
-        // 1. Fetch company
         let companyData;
         try {
           companyData = await api.getCompany('bpe');
@@ -72,7 +72,6 @@ function CatalogContent() {
         }
         setCompany(companyData);
 
-        // 2. Fetch categories
         let cats: any[] = [];
         try {
           cats = await api.getCategories(companyData.id);
@@ -82,7 +81,6 @@ function CatalogContent() {
         }
         setCategories(cats);
 
-        // 3. Fetch products
         let prods: any[] = [];
         try {
           prods = await api.getProducts(companyData.id);
@@ -90,7 +88,6 @@ function CatalogContent() {
           console.error('Products fetch failed:', e);
           toast.error('Failed to load products');
         }
-        // Ensure prods is always an array
         if (!Array.isArray(prods)) prods = [];
         setAllProducts(prods);
         setProducts(prods);
@@ -104,24 +101,47 @@ function CatalogContent() {
     loadData();
   }, []);
 
+  // Filter products locally based on search + category
   useEffect(() => {
     if (!company) return;
-    const fetchFiltered = async () => {
-      let filtered: any[] = [];
-      try {
-        filtered = await api.getProducts(company.id, {
-          search: search || undefined,
-          categoryId: selectedCategory || undefined,
-        });
-      } catch (e) {
-        console.error('Filtered products fetch failed:', e);
-        toast.error('Failed to apply filter');
+
+    // Helper: get category ID + all child IDs
+    const getCategoryIds = (catId: string): string[] => {
+      const result = [catId];
+      const childIds = categories
+        .filter(c => c.parentId === catId)
+        .map(c => c.id);
+      return [...result, ...childIds];
+    };
+
+    const filterProducts = () => {
+      let filtered = allProducts;
+
+      // Search filter (name, description, specs)
+      if (search.trim()) {
+        const s = search.toLowerCase();
+        filtered = filtered.filter(p =>
+          p.name.toLowerCase().includes(s) ||
+          p.description?.toLowerCase().includes(s) ||
+          Object.values(p.specs || {}).some(v =>
+            String(v).toLowerCase().includes(s)
+          )
+        );
       }
-      if (!Array.isArray(filtered)) filtered = [];
+
+      // Category filter (parent includes children)
+      if (selectedCategory) {
+        const allowedIds = getCategoryIds(selectedCategory);
+        filtered = filtered.filter(p =>
+          allowedIds.includes(p.categoryId)
+        );
+      }
+
       setProducts(filtered);
     };
-    fetchFiltered();
-  }, [search, selectedCategory, company]);
+
+    filterProducts();
+  }, [search, selectedCategory, allProducts, categories, company]);
 
   const handleSubmitLead = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,7 +200,7 @@ function CatalogContent() {
 
   return (
     <div className="min-h-screen bg-white font-sans antialiased">
-      {/* HEADER — same as before */}
+      {/* ===== HEADER ===== */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -296,7 +316,6 @@ function CatalogContent() {
                 </DialogContent>
               </Dialog>
 
-              {/* Mobile menu button */}
               <button
                 className="md:hidden text-slate-500 hover:text-slate-700 transition-colors p-2"
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
