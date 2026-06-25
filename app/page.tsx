@@ -1,11 +1,13 @@
-// app/page.tsx — Hero Restored, Search in Hero, Throttled Dropdown Position
+// app/page.tsx — Figma UI with Debounce & Stable Dropdown
 'use client';
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Heart, MessageCircle, Trash2, Download, Eye,
-  XCircle, ArrowUp, Menu, X, Zap, Lightbulb
+  XCircle, ArrowUp, Menu, X, Zap, Lightbulb,
+  ChevronRight, BookMarked, Phone, Mail, FileDown,
+  CheckCircle, ArrowRight, MapPin
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useWishlist } from '@/store/wishlist';
@@ -13,6 +15,7 @@ import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { CatalogPDF } from '@/components/PDFCatalog';
 import { extractIntent, getMatchingSeries } from '@/lib/searchTags';
+import { useDebounce } from '@/hooks/useDebounce'; // <-- NEW IMPORT
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 const PDFDownloadLink = dynamic(
@@ -22,18 +25,14 @@ const PDFDownloadLink = dynamic(
 
 function ProductSkeleton() {
   return (
-    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden animate-pulse">
-      <div className="aspect-square bg-slate-100" />
+    <div className="bg-white border border-[#e8edf3] animate-pulse">
+      <div className="aspect-[4/3] bg-[#eef1f5]" />
       <div className="p-4 space-y-3">
-        <div className="h-4 bg-slate-100 rounded w-3/4" />
-        <div className="h-3 bg-slate-100 rounded w-full" />
+        <div className="h-5 bg-[#eef1f5] rounded w-3/4" />
+        <div className="h-3 bg-[#eef1f5] rounded w-full" />
         <div className="flex gap-2 mt-3">
-          <div className="h-5 bg-slate-100 rounded w-16" />
-          <div className="h-5 bg-slate-100 rounded w-16" />
-        </div>
-        <div className="flex gap-2 pt-3 border-t border-slate-100">
-          <div className="h-9 bg-slate-100 rounded-lg flex-1" />
-          <div className="h-9 w-9 bg-slate-100 rounded-lg" />
+          <div className="h-5 bg-[#eef1f5] rounded w-16" />
+          <div className="h-5 bg-[#eef1f5] rounded w-16" />
         </div>
       </div>
     </div>
@@ -41,6 +40,7 @@ function ProductSkeleton() {
 }
 
 function CatalogContent() {
+  // ─── STATE ──────────────────────────────────────────────────
   const [company, setCompany] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
   const [allProducts, setAllProducts] = useState<any[]>([]);
@@ -59,11 +59,13 @@ function CatalogContent() {
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchInputRef, setSearchInputRef] = useState<HTMLInputElement | null>(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
 
   const wishlist = useWishlist();
 
-  // Load data from backend (only once)
+  // ─── DEBOUNCE SEARCH ────────────────────────────────────────
+  const debouncedSearch = useDebounce(search, 300);
+
+  // ─── LOAD DATA ──────────────────────────────────────────────
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -108,67 +110,7 @@ function CatalogContent() {
     loadData();
   }, []);
 
-  // === THROTTLED DROPDOWN POSITIONING (viewport-relative) ===
-  useEffect(() => {
-    if (!showDropdown || !searchInputRef) return;
-
-    let frameId: number | null = null;
-    let throttleTimer: NodeJS.Timeout | null = null;
-
-    const updatePosition = () => {
-      if (!searchInputRef) return;
-      const rect = searchInputRef.getBoundingClientRect();
-
-      // Hide if input is completely out of view
-      if (rect.bottom < 0 || rect.top > window.innerHeight) {
-        setShowDropdown(false);
-        return;
-      }
-
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      const dropdownHeight = 320; // max-h-80
-
-      let top = rect.bottom + 8;
-      // Flip upward if not enough space below
-      if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
-        top = rect.top - dropdownHeight - 8;
-      }
-
-      setDropdownPosition({
-        top,
-        left: rect.left,
-        width: rect.width,
-      });
-    };
-
-    const rafUpdate = () => {
-      if (frameId) cancelAnimationFrame(frameId);
-      frameId = requestAnimationFrame(updatePosition);
-    };
-
-    // Throttled version: at most once every 100ms
-    const throttledRafUpdate = () => {
-      if (throttleTimer) return;
-      throttleTimer = setTimeout(() => {
-        throttleTimer = null;
-        rafUpdate();
-      }, 100);
-    };
-
-    rafUpdate();
-    window.addEventListener('scroll', throttledRafUpdate, { passive: true });
-    window.addEventListener('resize', throttledRafUpdate, { passive: true });
-
-    return () => {
-      if (frameId) cancelAnimationFrame(frameId);
-      if (throttleTimer) clearTimeout(throttleTimer);
-      window.removeEventListener('scroll', throttledRafUpdate);
-      window.removeEventListener('resize', throttledRafUpdate);
-    };
-  }, [showDropdown, searchInputRef, search]);
-
-  // Helper: get category IDs (including children)
+  // ─── HELPERS ────────────────────────────────────────────────
   const getCategoryIds = (catId: string): string[] => {
     const result = [catId];
     const childIds = categories
@@ -177,7 +119,6 @@ function CatalogContent() {
     return [...result, ...childIds];
   };
 
-  // Detect if query looks like natural language (for mode switch hint)
   const looksLikeNaturalLanguage = (query: string): boolean => {
     const lower = query.toLowerCase();
     const patterns = ['for', 'to', 'need', 'looking for', 'want', 'need a', 'have', 'with', 'without', '?'];
@@ -186,13 +127,111 @@ function CatalogContent() {
     return isLongQuery || hasPattern;
   };
 
-  // === Main filter for product grid ===
+  // ─── AI SEARCH HANDLER ──────────────────────────────────────
+  const handleAISearch = (value: string) => {
+    const intents = extractIntent(value);
+    const matchingSeries = getMatchingSeries(intents);
+    const isAISearch = intents.length > 0;
+
+    if (!isAISearch) {
+      const s = value.toLowerCase();
+      const results = allProducts.filter(p =>
+        p.name.toLowerCase().includes(s) ||
+        p.description?.toLowerCase().includes(s) ||
+        Object.values(p.specs || {}).some(v =>
+          String(v).toLowerCase().includes(s)
+        )
+      );
+      setSearchResults(results.slice(0, 8));
+      setShowDropdown(results.length > 0);
+      return;
+    }
+
+    const s = value.toLowerCase();
+
+    const nameMatch = allProducts.filter(p => p.name.toLowerCase().startsWith(s));
+    const containsMatch = allProducts.filter(p =>
+      p.name.toLowerCase().includes(s) && !p.name.toLowerCase().startsWith(s)
+    );
+    const descMatch = allProducts.filter(p =>
+      (p.description?.toLowerCase().includes(s) ||
+      Object.values(p.specs || {}).some(v =>
+        String(v).toLowerCase().includes(s)
+      )) &&
+      !p.name.toLowerCase().includes(s)
+    );
+
+    let intentMatch: any[] = [];
+    const matchedProducts = allProducts.filter(p => {
+      const productName = p.name.toLowerCase();
+      const category = categories.find(c => c.id === p.categoryId);
+      const categoryName = category?.name?.toLowerCase() || '';
+      for (const series of matchingSeries) {
+        if (productName.includes(series.toLowerCase()) ||
+            categoryName.includes(series.toLowerCase())) {
+          return true;
+        }
+      }
+      return false;
+    });
+    const existingIds = new Set([...nameMatch, ...containsMatch, ...descMatch].map(p => p.id));
+    intentMatch = matchedProducts.filter(p => !existingIds.has(p.id));
+
+    let combined = [...nameMatch, ...containsMatch, ...descMatch, ...intentMatch];
+    const unique = combined.filter((p, index, self) =>
+      index === self.findIndex((t) => t.id === p.id)
+    );
+
+    const scored = unique.map(p => {
+      let score = 0;
+      const nameLower = p.name.toLowerCase();
+      if (nameLower.startsWith(s)) score += 100;
+      else if (nameLower.includes(s)) score += 50;
+      if (isAISearch) {
+        for (const series of matchingSeries) {
+          if (nameLower.includes(series.toLowerCase())) {
+            score += 30;
+            break;
+          }
+        }
+      }
+      return { ...p, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+
+    setSearchResults(scored.slice(0, 8));
+    setShowDropdown(scored.length > 0);
+  };
+
+  // ─── SEARCH TRIGGERED BY DEBOUNCE ──────────────────────────
+  useEffect(() => {
+    if (debouncedSearch.trim().length === 0) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    if (searchMode === 'ai') {
+      handleAISearch(debouncedSearch);
+    } else {
+      const s = debouncedSearch.toLowerCase();
+      const results = allProducts.filter(p =>
+        p.name.toLowerCase().includes(s) ||
+        p.description?.toLowerCase().includes(s) ||
+        Object.values(p.specs || {}).some(v =>
+          String(v).toLowerCase().includes(s)
+        )
+      );
+      setSearchResults(results.slice(0, 8));
+      setShowDropdown(results.length > 0);
+    }
+  }, [debouncedSearch, searchMode, allProducts]);
+
+  // ─── FILTER PRODUCTS ────────────────────────────────────────
   const filterProducts = () => {
     let filtered = allProducts;
-
     if (search.trim()) {
       const s = search.toLowerCase();
-
       if (searchMode === 'product') {
         filtered = filtered.filter(p =>
           p.name.toLowerCase().includes(s) ||
@@ -210,7 +249,6 @@ function CatalogContent() {
         const intents = extractIntent(search);
         const matchingSeries = getMatchingSeries(intents);
         const isAISearch = intents.length > 0;
-
         const nameMatch = allProducts.filter(p =>
           p.name.toLowerCase().startsWith(s)
         );
@@ -224,7 +262,6 @@ function CatalogContent() {
           )) &&
           !p.name.toLowerCase().includes(s)
         );
-
         let intentMatch: any[] = [];
         if (isAISearch) {
           const matchedProducts = allProducts.filter(p => {
@@ -246,12 +283,10 @@ function CatalogContent() {
           ].map(p => p.id));
           intentMatch = matchedProducts.filter(p => !existingIds.has(p.id));
         }
-
         let combined = [...nameMatch, ...containsMatch, ...descMatch, ...intentMatch];
         const unique = combined.filter((p, index, self) =>
           index === self.findIndex((t) => t.id === p.id)
         );
-
         const scored = unique.map(p => {
           let score = 0;
           const nameLower = p.name.toLowerCase();
@@ -275,127 +310,27 @@ function CatalogContent() {
       filtered = allProducts;
       setShowModeSwitchHint(false);
     }
-
     if (selectedCategory) {
       const allowedIds = getCategoryIds(selectedCategory);
       filtered = filtered.filter(p =>
         allowedIds.includes(p.categoryId)
       );
     }
-
     setProducts(filtered);
   };
 
-  // Run filter whenever search, mode, category, or products change
   useEffect(() => {
     filterProducts();
   }, [search, searchMode, selectedCategory, allProducts, categories]);
 
-  // Handle search input change with dropdown
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSearch(value);
-    setShowModeSwitchHint(false);
-
-    if (value.trim().length === 0) {
-      setSearchResults([]);
-      setShowDropdown(false);
-      return;
-    }
-
-    let results: any[] = [];
-
-    if (searchMode === 'product') {
-      const s = value.toLowerCase();
-      results = allProducts.filter(p =>
-        p.name.toLowerCase().includes(s) ||
-        p.description?.toLowerCase().includes(s) ||
-        Object.values(p.specs || {}).some(v =>
-          String(v).toLowerCase().includes(s)
-        )
-      );
-      results = results.map(p => {
-        const nameLower = p.name.toLowerCase();
-        let score = 0;
-        if (nameLower.startsWith(s)) score = 100;
-        else if (nameLower.includes(s)) score = 50;
-        return { ...p, score };
-      });
-      results.sort((a, b) => b.score - a.score);
-    } else {
-      const s = value.toLowerCase();
-      const intents = extractIntent(value);
-      const matchingSeries = getMatchingSeries(intents);
-      const isAISearch = intents.length > 0;
-
-      const nameMatch = allProducts.filter(p => p.name.toLowerCase().startsWith(s));
-      const containsMatch = allProducts.filter(p =>
-        p.name.toLowerCase().includes(s) && !p.name.toLowerCase().startsWith(s)
-      );
-      const descMatch = allProducts.filter(p =>
-        (p.description?.toLowerCase().includes(s) ||
-        Object.values(p.specs || {}).some(v =>
-          String(v).toLowerCase().includes(s)
-        )) &&
-        !p.name.toLowerCase().includes(s)
-      );
-
-      let intentMatch: any[] = [];
-      if (isAISearch) {
-        const matchedProducts = allProducts.filter(p => {
-          const productName = p.name.toLowerCase();
-          const category = categories.find(c => c.id === p.categoryId);
-          const categoryName = category?.name?.toLowerCase() || '';
-          for (const series of matchingSeries) {
-            if (productName.includes(series.toLowerCase()) ||
-                categoryName.includes(series.toLowerCase())) {
-              return true;
-            }
-          }
-          return false;
-        });
-        const existingIds = new Set([
-          ...nameMatch,
-          ...containsMatch,
-          ...descMatch,
-        ].map(p => p.id));
-        intentMatch = matchedProducts.filter(p => !existingIds.has(p.id));
-      }
-
-      let combined = [...nameMatch, ...containsMatch, ...descMatch, ...intentMatch];
-      const unique = combined.filter((p, index, self) =>
-        index === self.findIndex((t) => t.id === p.id)
-      );
-      const scored = unique.map(p => {
-        let score = 0;
-        const nameLower = p.name.toLowerCase();
-        if (nameLower.startsWith(s)) score = 100;
-        else if (nameLower.includes(s)) score = 50;
-        if (isAISearch) {
-          for (const series of matchingSeries) {
-            if (nameLower.includes(series.toLowerCase())) {
-              score += 30;
-              break;
-            }
-          }
-        }
-        return { ...p, score };
-      });
-      scored.sort((a, b) => b.score - a.score);
-      results = scored;
-    }
-
-    setSearchResults(results.slice(0, 8));
-    setShowDropdown(true);
-  };
-
-  // Switch to AI mode
+  // ─── SWITCH MODE ────────────────────────────────────────────
   const switchToAIMode = () => {
     setSearchMode('ai');
     setShowModeSwitchHint(false);
     setTimeout(() => filterProducts(), 100);
   };
 
+  // ─── LEAD SUBMIT ────────────────────────────────────────────
   const handleSubmitLead = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -412,6 +347,7 @@ function CatalogContent() {
     }
   };
 
+  // ─── SCROLL ──────────────────────────────────────────────────
   useEffect(() => {
     const handleScroll = () => setShowBackToTop(window.scrollY > 400);
     window.addEventListener('scroll', handleScroll);
@@ -451,531 +387,703 @@ function CatalogContent() {
     `Hello BPE Team,\nI'm interested in these products:\n${wishlist.items.map(p => `- ${p.name}`).join('\n')}\n\nPlease contact me.`
   );
 
+  // ─── RENDER ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-white font-sans antialiased">
       {/* ===== HEADER ===== */}
-      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-[#1e3a5f] flex items-center justify-center">
-                <Zap className="h-4 w-4 text-white" />
+      <header className="border-b border-[#cdd5de] bg-white sticky top-0 z-50">
+        <div className="bg-[#0b1f3a] text-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 h-9 flex items-center justify-between">
+            <span className="text-[12px] tracking-wider uppercase text-[#7a9cc8] font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+              Showcase AI — Industrial Power Solutions
+            </span>
+            <div className="hidden sm:flex items-center gap-5">
+              <a href="tel:+919876500000" className="flex items-center gap-1.5 text-[11px] text-[#7a9cc8] hover:text-white transition-colors">
+                <Phone size={11} /> +91 98765 00000
+              </a>
+              <a href="mailto:sales@showcaseai.com" className="flex items-center gap-1.5 text-[11px] text-[#7a9cc8] hover:text-white transition-colors">
+                <Mail size={11} /> sales@showcaseai.com
+              </a>
+              <Link href="/admin" className="text-[11px] text-[#7a9cc8] hover:text-white transition-colors border-l border-white/[0.15] pl-5">
+                Admin Portal
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-6">
+          <Link href="/" className="flex items-center gap-3 shrink-0">
+            <div className="w-9 h-9 bg-[#0b1f3a] flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M10 2L2 7V13L10 18L18 13V7L10 2Z" fill="#1a6b3c" stroke="none"/>
+                <path d="M10 6L6 8.5V12.5L10 15L14 12.5V8.5L10 6Z" fill="white" stroke="none"/>
+              </svg>
+            </div>
+            <div>
+              <div className="text-[18px] leading-none tracking-wide text-[#0b1f3a] uppercase" style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700 }}>
+                Showcase AI
               </div>
-              <div>
-                <h1 className="text-sm font-display font-bold text-slate-900 tracking-tight">
-                  {company.name}
-                </h1>
-                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">
-                  Product catalog
-                </p>
+              <div className="text-[9px] tracking-[0.12em] text-[#5a6e82] uppercase leading-none mt-0.5">
+                Product Catalog Platform
               </div>
             </div>
+          </Link>
 
-            <div className="flex items-center gap-2">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <button className="relative flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 hover:scale-[1.02] rounded-lg transition-all duration-200 border border-slate-100">
-                    <Heart className="h-4 w-4" />
-                    <span className="hidden sm:inline">Wishlist</span>
-                    {!isWishlistEmpty && (
-                      <span className="absolute -top-2 -right-2 bg-[#1e3a5f] text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                        {wishlist.items.length}
-                      </span>
-                    )}
-                  </button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md rounded-2xl p-6 shadow-2xl border-0">
-                  <DialogHeader>
-                    <DialogTitle className="text-lg font-display font-bold text-slate-900">
-                      Your wishlist
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="max-h-96 overflow-y-auto pr-1">
-                    {isWishlistEmpty ? (
-                      <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-                        <Heart className="h-12 w-12 mb-3 stroke-[1.5]" />
-                        <p className="text-sm font-medium text-slate-500">Your wishlist is empty</p>
-                        <p className="text-xs text-slate-400 mt-1">
-                          Start shortlisting products you need
-                        </p>
-                      </div>
-                    ) : (
-                      <ul className="space-y-2">
-                        {wishlist.items.map(item => (
-                          <li
-                            key={item.id}
-                            className="flex justify-between items-center bg-slate-50 rounded-lg p-3 border border-slate-100"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm text-slate-800 truncate">
-                                {item.name}
-                              </p>
-                              <p className="text-xs text-slate-400 truncate">
-                                {Object.values(item.specs || {}).slice(0, 2).join(' · ')}
-                              </p>
-                            </div>
-                            <button
-                              className="text-slate-300 hover:text-red-500 transition-colors p-1"
-                              onClick={() => wishlist.removeItem(item.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  {!isWishlistEmpty && (
-                    <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-slate-100">
-                      <div className="flex gap-2">
-                        <PDFDownloadLink
-                          document={<CatalogPDF company={company} products={wishlist.items} />}
-                          fileName="bpe-catalog.pdf"
-                        >
-                          {({ loading }) => (
-                            <button
-                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1e3a5f] hover:bg-[#16293f] text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
-                              disabled={loading}
-                            >
-                              <Download className="h-4 w-4" />
-                              {loading ? 'Generating...' : 'Download PDF'}
-                            </button>
-                          )}
-                        </PDFDownloadLink>
-                        <a
-                          href={`https://wa.me/${company.whatsappNumber}?text=${whatsappMessage}`}
-                          target="_blank"
-                          className="flex-1"
-                        >
-                          <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm">
-                            <MessageCircle className="h-4 w-4" /> WhatsApp
-                          </button>
-                        </a>
-                      </div>
-                      <button
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg transition-colors"
-                        onClick={() => setShowLeadModal(true)}
-                      >
-                        Submit inquiry
-                      </button>
-                      <button
-                        className="w-full text-xs text-slate-400 hover:text-slate-600 transition-colors py-1"
-                        onClick={() => wishlist.clear()}
-                      >
-                        Clear wishlist
-                      </button>
-                    </div>
-                  )}
-                </DialogContent>
-              </Dialog>
-
-              <button
-                className="md:hidden text-slate-500 hover:text-slate-700 transition-colors p-2"
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                aria-label="Toggle mobile menu"
-              >
-                {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              </button>
+          <div className="hidden md:flex flex-1 max-w-md">
+            <div className="relative w-full">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9ab0c4]" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search transformers, switchgear, solar..."
+                className="w-full pl-9 pr-3 py-2 bg-[#f2f5f8] border border-[#cdd5de] text-[13px] text-[#0b1f3a] placeholder-[#9ab0c4] outline-none focus:border-[#1a6b3c] transition-colors"
+                ref={setSearchInputRef}
+              />
             </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button className="md:hidden p-2 text-[#5a6e82] hover:text-[#0b1f3a]">
+              <Search size={17} />
+            </button>
+
+            <Link
+              href="/wishlist"
+              className="relative flex items-center gap-1.5 px-3 py-1.5 border border-[#cdd5de] hover:border-[#0b1f3a] text-[12px] font-medium text-[#0b1f3a] transition-colors"
+            >
+              <BookMarked size={13} />
+              <span className="hidden sm:inline">Wishlist</span>
+              {wishlist.items.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-[#1a6b3c] text-white text-[9px] font-700 min-w-[16px] h-4 rounded-full flex items-center justify-center px-1">
+                  {wishlist.items.length}
+                </span>
+              )}
+            </Link>
+
+            <Link
+              href="/contact"
+              className="hidden sm:flex items-center gap-1.5 px-4 py-1.5 bg-[#1a6b3c] hover:bg-[#155731] text-white text-[12px] font-600 transition-colors"
+            >
+              Request Quote
+            </Link>
+
+            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="md:hidden p-2 text-[#5a6e82]">
+              {isMobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          </div>
+        </div>
+
+        <div className="hidden md:block border-t border-[#e8edf3] bg-[#f8fafc]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <nav className="flex items-center gap-0">
+              {['Products', 'Categories', 'Solutions', 'Downloads', 'Contact'].map(n => (
+                <Link
+                  key={n}
+                  href={n === 'Contact' ? '/contact' : n === 'Products' ? '/products' : n === 'Categories' ? '/categories' : '/products'}
+                  className="flex items-center gap-1 px-4 py-2.5 text-[12px] font-600 uppercase tracking-wide border-b-2 border-transparent text-[#5a6e82] hover:text-[#0b1f3a] hover:border-[#cdd5de] transition-colors"
+                >
+                  {n}
+                </Link>
+              ))}
+            </nav>
           </div>
         </div>
       </header>
 
-      {/* ===== HERO SECTION ===== */}
-      <section className="relative py-16 px-4 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/60 via-white to-slate-50" />
-        <div
-          className="absolute inset-0 opacity-[0.9]"
-          style={{
-            backgroundImage: 'radial-gradient(#1e3a5f 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
-            maskImage: 'linear-gradient(to bottom, black, transparent)',
-          }}
-        />
-        <div className="relative z-10 max-w-4xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="inline-flex items-center gap-2 bg-white border border-slate-100 px-3.5 py-1.5 rounded-full mb-6"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span className="text-[11px] font-medium text-slate-500 tracking-wide">
-              Live interactive catalog
-            </span>
-          </motion.div>
+      {/* ===== HERO ───────────────────────────────────────────── */}
+      <section className="bg-[#0b1f3a] pt-10 pb-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+            <div>
+              <p className="text-[12px] tracking-widest text-[#1a6b3c] uppercase mb-3 font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                Industrial Power Solutions Catalog
+              </p>
+              <h1 className="text-[44px] sm:text-[54px] leading-none text-white uppercase mb-4" style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700 }}>
+                Precision Engineering.<br />
+                <span className="text-[#1a6b3c]">Proven Performance.</span>
+              </h1>
+              <p className="text-[14px] text-[#7a9cc8] leading-relaxed mb-8 max-w-md">
+                Explore our complete range of transformers, switchgear, solar systems, cables, and protection equipment. Shortlist products, generate PDF catalogs, and submit inquiries — all in one place.
+              </p>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-4xl sm:text-6xl font-display font-extrabold tracking-tight text-slate-900 leading-[1.1]"
-          >
-            Flexible power,<br />
-            <span className="text-[#1e3a5f]">reliable solutions</span>
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.25 }}
-            className="mt-4 text-base sm:text-lg text-slate-500 max-w-xl mx-auto leading-relaxed"
-          >
-            Search the full UPS, BESS and data-center range. Shortlist, compare,
-            and send an inquiry in one place.
-          </motion.p>
-
-          {/* ===== MODE TOGGLE + SEARCH INPUT ===== */}
-          <div className="mt-6 flex justify-center gap-2">
-            <button
-              onClick={() => setSearchMode('product')}
-              className={`px-4 py-1.5 text-sm font-medium rounded-full transition-all ${
-                searchMode === 'product'
-                  ? 'bg-[#1e3a5f] text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              🔍 Product Search
-            </button>
-            <button
-              onClick={() => setSearchMode('ai')}
-              className={`px-4 py-1.5 text-sm font-medium rounded-full transition-all ${
-                searchMode === 'ai'
-                  ? 'bg-[#1e3a5f] text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              ✨ AI Search
-            </button>
-          </div>
-
-          <div className="mt-4 max-w-xl mx-auto relative">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-            <input
-              ref={(el) => setSearchInputRef(el)}
-              type="text"
-              placeholder={
-                searchMode === 'product'
-                  ? "Search by model, kVA rating, or category..."
-                  : "Describe your power needs (e.g., UPS for 20 computers)..."
-              }
-              className="w-full pl-14 pr-12 py-4 text-base bg-white border border-slate-200 focus:border-slate-300 rounded-2xl shadow-lg shadow-slate-200/30 outline-none transition-colors"
-              value={search}
-              onChange={handleSearchChange}
-              onFocus={() => {
-                if (search.trim().length > 0 && searchResults.length > 0) {
-                  setShowDropdown(true);
-                }
-              }}
-            />
-            {search && (
-              <button
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                onClick={() => {
-                  setSearch('');
-                  setSearchResults([]);
-                  setShowDropdown(false);
-                  setShowModeSwitchHint(false);
-                }}
-              >
-                <XCircle className="h-5 w-5" />
-              </button>
-            )}
-          </div>
-
-          {/* AI Search Hint */}
-          {searchMode === 'ai' && (
-            <p className="mt-2 text-xs text-slate-400 flex items-center justify-center gap-1.5">
-              <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
-              Try: "office UPS for 10 computers" or "solar battery storage"
-            </p>
-          )}
-
-          {/* Mode Switch Hint */}
-          {showModeSwitchHint && searchMode === 'product' && search.trim() && (
-            <div className="mt-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 inline-flex items-center gap-2">
-              <Lightbulb className="h-4 w-4" />
-              <span>
-                It looks like you're describing a need.
+              {/* Search with mode toggle and stable container */}
+              <div className="flex flex-wrap items-center gap-2 mb-3">
                 <button
-                  onClick={switchToAIMode}
-                  className="ml-1.5 font-semibold text-blue-600 hover:text-blue-800 underline underline-offset-2"
+                  onClick={() => setSearchMode('product')}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    searchMode === 'product'
+                      ? 'bg-[#1a6b3c] text-white'
+                      : 'bg-white/10 text-[#7a9cc8] hover:bg-white/20 border border-white/10'
+                  }`}
                 >
-                  Try AI Search →
+                  Product Search
                 </button>
-              </span>
+                <button
+                  onClick={() => setSearchMode('ai')}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    searchMode === 'ai'
+                      ? 'bg-[#1a6b3c] text-white'
+                      : 'bg-white/10 text-[#7a9cc8] hover:bg-white/20 border border-white/10'
+                  }`}
+                >
+                  ✨ AI Search
+                </button>
+              </div>
+
+              {/* ── SEARCH INPUT WITH DROPDOWN (STABLE CONTAINER) ── */}
+              <div className="relative max-w-lg min-h-[64px]">
+                <div className="flex gap-0">
+                  <div className="relative flex-1">
+                    <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9ab0c4]" />
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder={searchMode === 'ai'
+                        ? "Describe your power needs (e.g., UPS for 20 computers)..."
+                        : "Search by product name, model, or specification..."
+                      }
+                      className="w-full pl-10 pr-4 py-3 bg-white border-0 text-[13px] text-[#0b1f3a] placeholder-[#9ab0c4] outline-none focus:ring-2 focus:ring-[#1a6b3c]"
+                      ref={setSearchInputRef}
+                      onFocus={() => {
+                        if (search.trim().length > 0 && searchResults.length > 0) {
+                          setShowDropdown(true);
+                        }
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (search.trim()) {
+                        // Trigger search immediately (debounce will handle)
+                      }
+                    }}
+                    className="px-5 py-3 bg-[#1a6b3c] hover:bg-[#155731] text-white text-[13px] font-600 transition-colors shrink-0 uppercase tracking-wide"
+                  >
+                    Search
+                  </button>
+                </div>
+
+                {/* Dropdown */}
+                {showDropdown && (
+                  <div
+                    className="absolute z-[9999] bg-white border border-[#e8edf3] shadow-xl max-h-80 overflow-y-auto w-full left-0"
+                    style={{ top: 'calc(100% + 4px)' }}
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    {searchResults.length > 0 ? (
+                      searchResults.map((product) => {
+                        const category = categories.find(c => c.id === product.categoryId);
+                        const imageUrl = (product.images && product.images[0]) || 'https://placehold.co/600x400/1a56db/white?text=No+Image';
+                        const isNameMatch = product.name.toLowerCase().startsWith(search.toLowerCase());
+                        const isAIMatch = searchMode === 'ai' && !isNameMatch && (product.score || 0) > 20;
+
+                        return (
+                          <Link
+                            key={product.id}
+                            href={`/product/${product.id}`}
+                            className={`flex items-center gap-3 px-4 py-3 hover:bg-[#f8fafc] transition-colors border-b border-[#e8edf3] last:border-0 ${
+                              isNameMatch ? 'bg-[#e8edf3]/30' : ''
+                            }`}
+                            onClick={() => {
+                              setShowDropdown(false);
+                              setSearch(product.name);
+                            }}
+                          >
+                            <img
+                              src={imageUrl}
+                              alt={product.name}
+                              className="w-12 h-12 object-cover bg-[#eef1f5]"
+                            />
+                            <div className="flex-1 text-left min-w-0">
+                              <p className="text-sm font-medium text-[#0b1f3a] truncate">
+                                {product.name}
+                                {isNameMatch && (
+                                  <span className="ml-2 text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">Best match</span>
+                                )}
+                                {isAIMatch && (
+                                  <span className="ml-2 text-[10px] text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full">AI match</span>
+                                )}
+                              </p>
+                              <p className="text-xs text-[#9ab0c4] truncate">{product.description}</p>
+                            </div>
+                            {category && (
+                              <span className="text-[10px] text-[#7a9cc8] bg-[#f2f5f8] px-2 py-1">
+                                {category.name}
+                              </span>
+                            )}
+                          </Link>
+                        );
+                      })
+                    ) : (
+                      <div className="p-4 text-center text-sm text-[#9ab0c4]">
+                        {searchMode === 'product'
+                          ? `No exact product found for "${search}". Try describing your need with AI Search`
+                          : `No products found for "${search}". Try different keywords.`}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {showModeSwitchHint && searchMode === 'product' && search.trim() && (
+                <div className="mt-2 text-sm text-amber-200 bg-amber-900/30 border border-amber-200/30 px-4 py-2 inline-flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4" />
+                  <span>
+                    It looks like you're describing a need.
+                    <button
+                      onClick={switchToAIMode}
+                      className="ml-1.5 font-semibold underline hover:text-white"
+                    >
+                      Try AI Search →
+                    </button>
+                  </span>
+                </div>
+              )}
+
+              {searchMode === 'ai' && (
+                <p className="mt-1 text-xs text-slate-400">
+                  ✨ Try: "office UPS for 10 computers" or "solar battery storage"
+                </p>
+              )}
+
+              {/* Quick links */}
+              <div className="mt-5 flex flex-wrap gap-2">
+                {['Distribution Transformers', 'MCC Panels', 'Solar Systems', 'VCB Switchgear'].map(q => (
+                  <button
+                    key={q}
+                    onClick={() => {
+                      setSearch(q);
+                    }}
+                    className="px-3 py-1 text-[11px] text-[#7a9cc8] border border-[#243348] hover:border-[#1a6b3c] hover:text-[#1a6b3c] transition-colors"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
             </div>
-          )}
+
+            {/* Stats panel */}
+            <div className="hidden lg:block">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { value: `${allProducts.length}+`, label: 'Products', sub: 'In active catalog' },
+                  { value: `${topLevelCategories.length}`, label: 'Product Lines', sub: 'Across all categories' },
+                  { value: '25 Yr', label: 'Warranty', sub: 'On solar panels' },
+                  { value: 'IEC', label: 'Type Tested', sub: 'All products CPRI certified' },
+                ].map(s => (
+                  <div key={s.label} className="border border-[#1f3a5c] p-5">
+                    <p className="text-[32px] text-white leading-none" style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700 }}>{s.value}</p>
+                    <p className="text-[13px] text-[#1a6b3c] mt-1 font-600" style={{ fontFamily: 'Barlow, sans-serif' }}>{s.label}</p>
+                    <p className="text-[11px] text-[#44617a] mt-0.5">{s.sub}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ===== SEARCH DROPDOWN ===== */}
-      {showDropdown && searchResults.length > 0 && (
-        <div
-          className="fixed z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-80 overflow-y-auto will-change-transform"
-          style={{
-            top: dropdownPosition.top,
-            left: dropdownPosition.left,
-            width: dropdownPosition.width || 'auto',
-            minWidth: '300px',
-          }}
-          onMouseDown={(e) => e.preventDefault()}
-        >
-          {searchResults.map((product) => {
-            const category = categories.find(c => c.id === product.categoryId);
-            const imageUrl = (product.images && product.images[0]) || 'https://placehold.co/600x400/1a56db/white?text=No+Image';
-            const isNameMatch = product.name.toLowerCase().startsWith(search.toLowerCase());
-            const isAIMatch = searchMode === 'ai' && !isNameMatch && (product.score || 0) > 20;
+      {/* ===== PRODUCT CATEGORIES ===== */}
+      <section className="py-12 border-b border-[#e8edf3]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-end justify-between mb-7">
+            <div className="flex items-center gap-4">
+              <div className="w-1 h-8 bg-[#1a6b3c]" />
+              <div>
+                <p className="text-[11px] text-[#5a6e82] uppercase tracking-widest font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                  Browse Catalog
+                </p>
+                <h2 className="text-[26px] text-[#0b1f3a] uppercase" style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700 }}>
+                  Product Categories
+                </h2>
+              </div>
+            </div>
+            <Link href="/categories" className="hidden sm:flex items-center gap-1.5 text-[12px] text-[#1a6b3c] font-600 hover:underline uppercase tracking-wide">
+              View All <ChevronRight size={13} />
+            </Link>
+          </div>
 
-            return (
-              <Link
-                key={product.id}
-                href={`/product/${product.id}`}
-                className={`flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 ${
-                  isNameMatch ? 'bg-blue-50/30' : ''
-                }`}
-                onClick={() => {
-                  setShowDropdown(false);
-                  setSearch(product.name);
-                }}
-              >
-                <img
-                  src={imageUrl}
-                  alt={product.name}
-                  className="w-12 h-12 object-cover rounded-lg bg-slate-50"
-                />
-                <div className="flex-1 text-left min-w-0">
-                  <p className="text-sm font-medium text-slate-800 truncate">
-                    {product.name}
-                    {isNameMatch && (
-                      <span className="ml-2 text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">Best match</span>
-                    )}
-                    {isAIMatch && (
-                      <span className="ml-2 text-[10px] text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full">AI match</span>
-                    )}
-                    {searchMode === 'product' && !isNameMatch && (
-                      <span className="ml-2 text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">Product</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-slate-400 truncate">{product.description}</p>
-                </div>
-                {category && (
-                  <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded-full whitespace-nowrap">
-                    {category.name}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </div>
-      )}
-
-      {showDropdown && search.trim().length > 0 && searchResults.length === 0 && (
-        <div
-          className="fixed z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 text-center text-sm text-slate-400"
-          style={{
-            top: dropdownPosition.top,
-            left: dropdownPosition.left,
-            width: dropdownPosition.width || 'auto',
-            minWidth: '300px',
-          }}
-        >
-          {searchMode === 'product'
-            ? `No exact product found for "${search}". Try describing your need with AI Search`
-            : `No products found for "${search}". Try different keywords.`}
-        </div>
-      )}
-
-      {/* ===== CATEGORY TABS ===== */}
-      <div className="sticky top-16 z-40 bg-white/90 backdrop-blur-sm border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-3">
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className={`px-4 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap transition-all duration-200 hover:scale-[1.02] ${
-                !selectedCategory
-                  ? 'bg-[#1e3a5f] text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              All <span className="ml-1.5 text-xs text-blue-200">({allProducts.length})</span>
-            </button>
-            {topLevelCategories.map((cat) => {
-              const totalCount = getTotalParentProductCount(cat.id);
-              if (totalCount === 0) return null;
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-0 border-t border-l border-[#e8edf3]">
+            {topLevelCategories.map(cat => {
+              const count = getTotalParentProductCount(cat.id);
+              if (count === 0) return null;
               return (
-                <button
+                <Link
                   key={cat.id}
+                  href={`/products?category=${cat.id}`}
+                  className="group border-r border-b border-[#e8edf3] p-5 hover:bg-[#f2f5f8] transition-colors"
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-4 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap transition-all duration-200 hover:scale-[1.02] ${
-                    selectedCategory === cat.id
-                      ? 'bg-[#1e3a5f] text-white'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  }`}
                 >
-                  {cat.name}
-                  <span
-                    className={`ml-1.5 text-xs ${
-                      selectedCategory === cat.id ? 'text-blue-200' : 'text-slate-400'
-                    }`}
-                  >
-                    {totalCount}
-                  </span>
-                </button>
+                  <div className="w-full h-24 bg-[#f2f5f8] overflow-hidden mb-3 group-hover:opacity-90 transition-opacity">
+                    <img
+                      src={`https://placehold.co/600x400/1a56db/white?text=${encodeURIComponent(cat.name)}`}
+                      alt={cat.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <p className="text-[13px] text-[#0b1f3a] leading-tight mb-1 font-600" style={{ fontFamily: 'Barlow, sans-serif' }}>{cat.name}</p>
+                  <p className="text-[11px] text-[#5a6e82]">{count} Products</p>
+                  <p className="text-[11px] text-[#1a6b3c] mt-2 group-hover:underline">Browse →</p>
+                </Link>
               );
             })}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ===== PRODUCT GRID ===== */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        {products.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-            <Search className="h-12 w-12 mb-4 stroke-1" />
-            <p className="text-lg font-medium text-slate-600">
-              {search.trim() ? 'No products found' : 'Start searching to find products'}
-            </p>
-            <p className="text-sm text-slate-400 mt-1">
-              {search.trim()
-                ? searchMode === 'product'
-                  ? 'Try describing your need with ✨ AI Search instead'
-                  : 'Try different keywords or switch to Product Search'
-                : 'Use the search bar above to explore our catalog'}
-            </p>
+      {/* ===== FEATURED PRODUCT FAMILIES ===== */}
+      <section className="py-12 bg-[#f8fafc] border-b border-[#e8edf3]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center gap-4 mb-7">
+            <div className="w-1 h-8 bg-[#0b1f3a]" />
+            <div>
+              <p className="text-[11px] text-[#5a6e82] uppercase tracking-widest font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                Core Product Lines
+              </p>
+              <h2 className="text-[26px] text-[#0b1f3a] uppercase" style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700 }}>
+                Featured Product Families
+              </h2>
+            </div>
           </div>
-        ) : (
-          <>
-            <p className="text-sm text-slate-400 mb-5">
-              <span className="font-medium text-slate-700">{products.length}</span> products
-              {selectedCategory && <span className="ml-1">in this category</span>}
-              {searchMode === 'ai' && search.trim() && (
-                <span className="ml-2 text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full text-xs">AI search</span>
-              )}
-            </p>
-            <motion.div
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
-              initial="hidden"
-              animate="visible"
-              variants={{
-                hidden: { opacity: 0 },
-                visible: {
-                  opacity: 1,
-                  transition: { staggerChildren: 0.03 },
-                },
-              }}
-            >
-              {products.map((product) => {
-                const category = categories.find((c) => c.id === product.categoryId);
-                const isInWishlist = wishlist.isInWishlist(product.id);
-                const specs = Object.entries(product.specs || {}).slice(0, 2);
-                const extraSpecs = Object.keys(product.specs || {}).length - 2;
-                const imageUrl = (product.images && product.images[0]) || 'https://placehold.co/600x400/1a56db/white?text=No+Image';
 
-                return (
-                  <motion.div
-                    key={product.id}
-                    variants={{
-                      hidden: { opacity: 0, y: 14 },
-                      visible: { opacity: 1, y: 0 },
-                    }}
-                    whileHover={{ y: -4 }}
-                    transition={{ duration: 0.2 }}
-                    className="group bg-white rounded-lg border border-slate-200 overflow-hidden hover:shadow-xl transition-shadow duration-300"
-                  >
-                    <Link href={`/product/${product.id}`} className="block">
-                      <div className="relative aspect-square bg-slate-50 overflow-hidden">
-                        <img
-                          src={imageUrl}
-                          alt={product.name}
-                          className="w-full h-full object-cover group-hover:scale-[1.05] transition-transform duration-300"
-                        />
-                        {category && (
-                          <span className="absolute top-3 left-3 text-[10px] font-medium text-slate-600 bg-white/95 px-2 py-1 rounded-md border border-slate-200">
-                            {category.name}
-                          </span>
-                        )}
-                        {product.badge && (
-                          <span className="absolute top-3 right-3 text-[10px] font-semibold text-white bg-[#1e3a5f] px-2 py-1 rounded-md">
-                            {product.badge}
-                          </span>
-                        )}
-                      </div>
-                    </Link>
-                    <div className="p-4">
-                      <Link href={`/product/${product.id}`} className="block">
-                        <h3 className="font-semibold text-[15px] text-slate-900 line-clamp-1 group-hover:text-[#1e3a5f] transition-colors">
-                          {product.name}
-                        </h3>
-                      </Link>
-                      <p className="text-[13px] text-slate-500 line-clamp-2 mt-1 leading-relaxed">
-                        {product.description || ''}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-0 border-t border-l border-[#e8edf3]">
+            {products.slice(0, 4).map(product => {
+              const isInWishlist = wishlist.isInWishlist(product.id);
+              const imageUrl = (product.images && product.images[0]) || 'https://placehold.co/600x400/1a56db/white?text=No+Image';
+              return (
+                <div key={product.id} className="border-r border-b border-[#e8edf3] bg-white hover:bg-[#f8fafc] transition-colors group flex flex-col">
+                  <div className="relative bg-[#eef1f5] overflow-hidden h-[180px]">
+                    <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:opacity-90 transition-opacity" />
+                    <button
+                      onClick={() => isInWishlist ? wishlist.removeItem(product.id) : wishlist.addItem(product)}
+                      className={`absolute top-2.5 right-2.5 w-7 h-7 flex items-center justify-center transition-all ${
+                        isInWishlist ? 'bg-[#1a6b3c] text-white' : 'bg-white/90 text-[#5a6e82] hover:text-[#1a6b3c]'
+                      }`}
+                    >
+                      <BookMarked size={13} />
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-[#0b1f3a]/80 px-3 py-1.5">
+                      <p className="text-[10px] text-[#7a9cc8] uppercase tracking-widest truncate font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                        {product.specs?.Type || 'Industrial'}
                       </p>
-                      <div className="flex flex-wrap gap-1.5 mt-3">
-                        {specs.map(([key, val]) => (
-                          <span
-                            key={key}
-                            className="text-[11px] font-medium text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md border-l-2 border-[#1e3a5f]"
-                          >
-                            {val as string}
-                          </span>
-                        ))}
-                        {extraSpecs > 0 && (
-                          <span className="text-[11px] text-slate-400 px-2 py-0.5">
-                            +{extraSpecs} more
-                          </span>
-                        )}
+                    </div>
+                  </div>
+                  <div className="p-4 flex flex-col flex-1 border-t border-[#e8edf3]">
+                    <h3 className="text-[15px] text-[#0b1f3a] uppercase leading-tight mb-2" style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700 }}>
+                      {product.name}
+                    </h3>
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div className="bg-[#f2f5f8] px-2.5 py-1.5">
+                        <p className="text-[9px] text-[#9ab0c4] uppercase tracking-wide">Capacity</p>
+                        <p className="text-[11px] text-[#0b1f3a] font-500 mt-0.5 font-mono">
+                          {product.specs?.Capacity || 'N/A'}
+                        </p>
                       </div>
-                      <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-                        <button
-                          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-medium rounded-lg transition-all duration-200 hover:scale-[1.02] ${
-                            isInWishlist
-                              ? 'bg-[#1e3a5f] text-white'
-                              : 'text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                          }`}
-                          onClick={() => {
-                            if (isInWishlist) {
-                              wishlist.removeItem(product.id);
-                              toast.info(`Removed ${product.name}`);
-                            } else {
-                              wishlist.addItem(product);
-                              toast.success(`Added ${product.name}`);
-                            }
-                          }}
-                        >
-                          <Heart
-                            className="h-3.5 w-3.5"
-                            fill={isInWishlist ? 'white' : 'none'}
-                          />
-                          {isInWishlist ? 'Added' : 'Shortlist'}
-                        </button>
-                        <button
-                          className="flex items-center justify-center px-3 py-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors border border-slate-200"
-                          onClick={() => setSelectedProduct(product)}
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
+                      <div className="bg-[#f2f5f8] px-2.5 py-1.5">
+                        <p className="text-[9px] text-[#9ab0c4] uppercase tracking-wide">Voltage</p>
+                        <p className="text-[11px] text-[#0b1f3a] font-500 mt-0.5 font-mono">
+                          {product.specs?.['Input Voltage'] || 'N/A'}
+                        </p>
                       </div>
                     </div>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
-          </>
-        )}
-      </main>
+                    <div className="flex items-center gap-1.5 mt-auto pt-3 border-t border-[#f2f5f8]">
+                      <Link href={`/product/${product.id}`} className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-[#0b1f3a] hover:bg-[#1a3055] text-white text-[11px] font-600 uppercase tracking-wide transition-colors">
+                        View Details
+                      </Link>
+                      <button
+                        onClick={() => isInWishlist ? wishlist.removeItem(product.id) : wishlist.addItem(product)}
+                        className={`px-3 py-2 text-[11px] font-600 border transition-colors ${
+                          isInWishlist
+                            ? 'bg-[#1a6b3c] border-[#1a6b3c] text-white'
+                            : 'border-[#cdd5de] text-[#5a6e82] hover:border-[#1a6b3c] hover:text-[#1a6b3c]'
+                        }`}
+                      >
+                        <BookMarked size={12} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== INDUSTRY SOLUTIONS ===== */}
+      <section className="py-12 border-b border-[#e8edf3]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center gap-4 mb-7">
+            <div className="w-1 h-8 bg-[#1a6b3c]" />
+            <div>
+              <p className="text-[11px] text-[#5a6e82] uppercase tracking-widest font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                Application Areas
+              </p>
+              <h2 className="text-[26px] text-[#0b1f3a] uppercase" style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700 }}>
+                Industry Solutions
+              </h2>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0 border-t border-l border-[#e8edf3]">
+            {[
+              { name: 'Power Generation', desc: 'Transformers and switchgear for utility and captive power plants.', icon: '⚡', href: '/products?category=transformers' },
+              { name: 'Industrial Facilities', desc: 'MCC, PCC, and cable solutions for process and manufacturing plants.', icon: '🏭', href: '/products?category=panels' },
+              { name: 'Solar & Renewables', desc: 'Complete solar EPC packages — rooftop, ground-mounted, and hybrid.', icon: '☀️', href: '/products?category=solar' },
+              { name: 'Infrastructure', desc: 'Power distribution for metro, airports, ports, and smart cities.', icon: '🏗️', href: '/products?category=switchgear' },
+              { name: 'Data Centres', desc: 'Dry-type transformers, UPS-grade panels, and redundant power systems.', icon: '🖥️', href: '/products?category=panels' },
+              { name: 'Marine & Offshore', desc: 'Type-tested switchgear and cables for vessels and offshore platforms.', icon: '⚓', href: '/products?category=cables' },
+            ].map(s => (
+              <Link
+                key={s.name}
+                href={s.href}
+                className="group border-r border-b border-[#e8edf3] p-6 hover:bg-[#f2f5f8] transition-colors"
+              >
+                <span className="text-2xl mb-3 block">{s.icon}</span>
+                <h3 className="text-[15px] text-[#0b1f3a] mb-2 font-600" style={{ fontFamily: 'Barlow, sans-serif' }}>{s.name}</h3>
+                <p className="text-[12px] text-[#5a6e82] leading-relaxed mb-3">{s.desc}</p>
+                <span className="text-[11px] text-[#1a6b3c] font-600 group-hover:underline uppercase tracking-wide">View Products →</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== PRODUCT SERIES SHOWCASE ===== */}
+      <section className="py-12 bg-[#f8fafc] border-b border-[#e8edf3]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center gap-4 mb-7">
+            <div className="w-1 h-8 bg-[#0b1f3a]" />
+            <div>
+              <p className="text-[11px] text-[#5a6e82] uppercase tracking-widest font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                Detailed Listings
+              </p>
+              <h2 className="text-[26px] text-[#0b1f3a] uppercase" style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700 }}>
+                Product Series Showcase
+              </h2>
+            </div>
+          </div>
+
+          <div className="space-y-0 border-t border-[#e8edf3]">
+            {products.slice(0, 3).map((product, idx) => {
+              const imageUrl = (product.images && product.images[0]) || 'https://placehold.co/600x400/1a56db/white?text=No+Image';
+              const specs = Object.entries(product.specs || {});
+              const category = categories.find(c => c.id === product.categoryId);
+              return (
+                <div key={product.id} className={`border-b border-[#e8edf3] ${idx % 2 === 0 ? 'bg-white' : 'bg-[#f8fafc]'}`}>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
+                    <div className="h-52 md:h-auto overflow-hidden bg-[#eef1f5]">
+                      <img src={imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="p-6 border-r border-[#e8edf3]">
+                      <p className="text-[11px] text-[#1a6b3c] uppercase tracking-widest font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                        {category?.name || 'Product'}
+                      </p>
+                      <h3 className="text-[20px] text-[#0b1f3a] mb-2 uppercase" style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700 }}>{product.name}</h3>
+                      <p className="text-[13px] text-[#5a6e82] leading-relaxed mb-4">{product.description}</p>
+                      <div className="flex flex-wrap gap-1.5 mb-5">
+                        {Object.keys(product.specs || {}).slice(0, 4).map(t => (
+                          <span key={t} className="px-2 py-0.5 bg-[#e8edf3] text-[10px] font-600 text-[#5a6e82] uppercase tracking-wide">{t}</span>
+                        ))}
+                      </div>
+                      <Link
+                        href={`/product/${product.id}`}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#0b1f3a] hover:bg-[#1a3055] text-white text-[12px] font-600 uppercase tracking-wide transition-colors"
+                      >
+                        View Details <ArrowRight size={12} />
+                      </Link>
+                    </div>
+                    <div className="p-6">
+                      <p className="text-[11px] text-[#5a6e82] uppercase tracking-widest font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>Key Specifications</p>
+                      <table className="w-full mt-3">
+                        <tbody>
+                          {specs.slice(0, 6).map(([k, v]) => (
+                            <tr key={k} className="border-b border-[#f2f5f8]">
+                              <td className="py-1.5 pr-3 text-[11px] text-[#5a6e82] align-top w-1/2">{k}</td>
+                              <td className="py-1.5 text-[11px] font-600 text-[#0b1f3a]" style={{ fontFamily: 'DM Mono, monospace' }}>{v as string}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 text-center border border-[#e8edf3] py-4 bg-white">
+            <Link
+              href="/products"
+              className="inline-flex items-center gap-2 text-[13px] font-600 text-[#0b1f3a] hover:text-[#1a6b3c] uppercase tracking-wide transition-colors"
+            >
+              View Complete Product Catalog ({allProducts.length}+ Products) <ArrowRight size={13} />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== INQUIRY CTA ===== */}
+      <section className="py-12 bg-[#0b1f3a]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+            <div>
+              <p className="text-[11px] tracking-widest text-[#1a6b3c] uppercase mb-3 font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                Sales & Technical Inquiry
+              </p>
+              <h2 className="text-[34px] text-white uppercase leading-tight mb-4" style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700 }}>
+                Build Your Shortlist.<br />
+                Generate Your Catalog.<br />
+                <span className="text-[#1a6b3c]">Submit Your Inquiry.</span>
+              </h2>
+              <p className="text-[13px] text-[#7a9cc8] leading-relaxed max-w-md">
+                Add products to your wishlist, generate a professionally formatted PDF catalog with full specifications, and submit your inquiry to our technical sales team — all without leaving the platform.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link
+                  href="/products"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#1a6b3c] hover:bg-[#155731] text-white text-[13px] font-600 uppercase tracking-wide transition-colors"
+                >
+                  <BookMarked size={14} />
+                  Start Shortlisting
+                </Link>
+                <Link
+                  href="/contact"
+                  className="flex items-center gap-2 px-5 py-2.5 border border-[#1f3a5c] hover:border-[#7a9cc8] text-[#7a9cc8] hover:text-white text-[13px] font-600 uppercase tracking-wide transition-colors"
+                >
+                  <Phone size={14} />
+                  Contact Sales
+                </Link>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              {[
+                { icon: <Search size={16} className="text-[#1a6b3c]" />, step: '01', title: 'Discover Products', desc: 'Search and filter across 120+ industrial products.' },
+                { icon: <BookMarked size={16} className="text-[#1a6b3c]" />, step: '02', title: 'Build Wishlist', desc: 'Shortlist products and set required quantities.' },
+                { icon: <FileDown size={16} className="text-[#1a6b3c]" />, step: '03', title: 'Generate PDF Catalog', desc: 'Download a branded catalog with full specifications.' },
+                { icon: <CheckCircle size={16} className="text-[#1a6b3c]" />, step: '04', title: 'Submit Inquiry', desc: 'Our technical team responds within 24 hours.' },
+              ].map(s => (
+                <div key={s.step} className="flex items-start gap-4 p-4 border border-[#1f3a5c]">
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-[11px] text-[#44617a]" style={{ fontFamily: 'DM Mono, monospace' }}>{s.step}</span>
+                    <div className="w-8 h-8 bg-[#1a6b3c]/20 flex items-center justify-center">
+                      {s.icon}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[13px] text-white mb-0.5 font-600" style={{ fontFamily: 'Barlow, sans-serif' }}>{s.title}</p>
+                    <p className="text-[12px] text-[#7a9cc8]">{s.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== FOOTER ===== */}
+      <footer className="bg-[#0b1f3a] text-white mt-auto border-t border-[#1f3a5c]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-10">
+            <div className="md:col-span-2">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-9 h-9 bg-[#1a6b3c] flex items-center justify-center">
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                    <path d="M10 2L2 7V13L10 18L18 13V7L10 2Z" fill="#1a6b3c" stroke="none"/>
+                    <path d="M10 6L6 8.5V12.5L10 15L14 12.5V8.5L10 6Z" fill="white" stroke="none"/>
+                  </svg>
+                </div>
+                <div>
+                  <div className="text-[17px] tracking-wide uppercase font-700" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>Showcase AI</div>
+                  <div className="text-[9px] tracking-[0.12em] text-[#7a9cc8] uppercase">Product Catalog Platform</div>
+                </div>
+              </div>
+              <p className="text-[13px] text-[#7a9cc8] leading-relaxed max-w-sm">
+                Premium industrial product catalog platform for power solutions, electrical equipment, solar energy, and automation products. Trusted by engineers and procurement teams across India.
+              </p>
+              <div className="mt-6 space-y-2.5">
+                <div className="flex items-center gap-3 text-[12px] text-[#7a9cc8]">
+                  <Phone size={12} className="text-[#1a6b3c] shrink-0" />
+                  +91 98765 00000 · +91 87654 99999
+                </div>
+                <div className="flex items-center gap-3 text-[12px] text-[#7a9cc8]">
+                  <Mail size={12} className="text-[#1a6b3c] shrink-0" />
+                  sales@showcaseai.com · info@showcaseai.com
+                </div>
+                <div className="flex items-start gap-3 text-[12px] text-[#7a9cc8]">
+                  <MapPin size={12} className="text-[#1a6b3c] shrink-0 mt-0.5" />
+                  Plot 45, MIDC Industrial Area, Pimpri-Chinchwad, Pune — 411019, Maharashtra
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[13px] uppercase tracking-widest text-[#1a6b3c] mb-4 font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                Product Range
+              </p>
+              <ul className="space-y-2">
+                {['Power Transformers', 'Control Panels', 'Solar Energy Systems', 'Switchgear', 'Cables & Wiring', 'Protection Relays'].map(l => (
+                  <li key={l}>
+                    <Link href={`/products?category=${l.toLowerCase().replace(/\s/g, '')}`} className="text-[12px] text-[#7a9cc8] hover:text-white transition-colors">
+                      {l}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <p className="text-[13px] uppercase tracking-widest text-[#1a6b3c] mb-4 font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                Support
+              </p>
+              <ul className="space-y-2 mb-6">
+                {[
+                  { label: 'Technical Documentation', href: '/products' },
+                  { label: 'Product Catalog (PDF)', href: '/wishlist' },
+                  { label: 'My Wishlist', href: '/wishlist' },
+                  { label: 'Request a Quote', href: '/contact' },
+                  { label: 'Admin Portal', href: '/admin' },
+                ].map(l => (
+                  <li key={l.label}>
+                    <Link href={l.href} className="text-[12px] text-[#7a9cc8] hover:text-white transition-colors">
+                      {l.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex flex-wrap gap-1.5">
+                {['IEC 60076', 'IS 1180', 'CPRI', 'BEE 5★'].map(c => (
+                  <span key={c} className="px-2 py-0.5 text-[10px] font-600 border border-[#1a6b3c]/50 text-[#1a6b3c] uppercase tracking-wide">
+                    {c}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-white/[0.07]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p className="text-[11px] text-[#44617a]">© 2026 Showcase AI. All rights reserved. CIN: U31100MH2005PLC000123</p>
+            <div className="flex items-center gap-5">
+              <span className="text-[11px] text-[#44617a]">Privacy Policy</span>
+              <span className="text-[11px] text-[#44617a]">Terms of Use</span>
+            </div>
+          </div>
+        </div>
+      </footer>
 
       {/* ===== QUICK VIEW MODAL ===== */}
       <Dialog open={!!selectedProduct} onOpenChange={() => setSelectedProduct(null)}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl border-0">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-xl border-0">
           <DialogHeader>
-            <DialogTitle className="text-lg font-display font-bold text-slate-900">
+            <DialogTitle className="text-lg font-bold text-slate-900">
               {selectedProduct?.name}
             </DialogTitle>
           </DialogHeader>
           {selectedProduct && (
             <div className="grid md:grid-cols-2 gap-6">
-              <div className="bg-slate-50 rounded-xl overflow-hidden relative border border-slate-100">
+              <div className="bg-slate-50 overflow-hidden border border-slate-200">
                 <img
                   src={(selectedProduct.images && selectedProduct.images[0]) || 'https://placehold.co/600x600/1a56db/white?text=No+Image'}
                   alt={selectedProduct.name}
@@ -1004,7 +1112,7 @@ function CatalogContent() {
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2">
                   <button
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-[#1e3a5f] hover:bg-[#16293f] rounded-lg transition-colors shadow-sm hover:scale-[1.02] duration-200"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-[#1e3a5f] hover:bg-[#16293f] transition-colors"
                     onClick={() => {
                       wishlist.addItem(selectedProduct);
                       toast.success(`Added ${selectedProduct.name}`);
@@ -1017,7 +1125,7 @@ function CatalogContent() {
                     href={`https://wa.me/${company.whatsappNumber}?text=${encodeURIComponent(`Hi, I need details for ${selectedProduct.name}`)}`}
                     target="_blank"
                   >
-                    <button className="flex items-center justify-center px-4 py-2.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg transition-colors hover:bg-slate-50">
+                    <button className="flex items-center justify-center px-4 py-2.5 text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors">
                       <MessageCircle className="h-4 w-4" />
                     </button>
                   </a>
@@ -1030,9 +1138,9 @@ function CatalogContent() {
 
       {/* ===== LEAD CAPTURE MODAL ===== */}
       <Dialog open={showLeadModal} onOpenChange={setShowLeadModal}>
-        <DialogContent className="sm:max-w-md rounded-2xl p-6 shadow-2xl border-0">
+        <DialogContent className="sm:max-w-md p-6 shadow-xl border-0">
           <DialogHeader>
-            <DialogTitle className="text-lg font-display font-bold text-slate-900">
+            <DialogTitle className="text-lg font-bold text-slate-900">
               Submit inquiry
             </DialogTitle>
           </DialogHeader>
@@ -1044,7 +1152,7 @@ function CatalogContent() {
               <input
                 required
                 placeholder="Your full name"
-                className="w-full mt-1 px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 transition-colors"
+                className="w-full mt-1 px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#1e3a5f] transition-colors"
                 value={leadForm.name}
                 onChange={(e) => setLeadForm({ ...leadForm, name: e.target.value })}
               />
@@ -1057,7 +1165,7 @@ function CatalogContent() {
                 type="email"
                 required
                 placeholder="you@example.com"
-                className="w-full mt-1 px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 transition-colors"
+                className="w-full mt-1 px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#1e3a5f] transition-colors"
                 value={leadForm.email}
                 onChange={(e) => setLeadForm({ ...leadForm, email: e.target.value })}
               />
@@ -1069,7 +1177,7 @@ function CatalogContent() {
               <input
                 required
                 placeholder="+91 9999999999"
-                className="w-full mt-1 px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 transition-colors"
+                className="w-full mt-1 px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#1e3a5f] transition-colors"
                 value={leadForm.phone}
                 onChange={(e) => setLeadForm({ ...leadForm, phone: e.target.value })}
               />
@@ -1080,13 +1188,13 @@ function CatalogContent() {
               </label>
               <input
                 placeholder="Any specific requirements?"
-                className="w-full mt-1 px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 transition-colors"
+                className="w-full mt-1 px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#1e3a5f] transition-colors"
                 value={leadForm.message}
                 onChange={(e) => setLeadForm({ ...leadForm, message: e.target.value })}
               />
             </div>
             {wishlist.items.length > 0 && (
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+              <div className="bg-slate-50 p-3 border border-slate-200">
                 <p className="text-xs font-medium text-slate-500">Selected products</p>
                 <p className="text-xs text-slate-400 mt-1 line-clamp-2">
                   {wishlist.items.map((p) => p.name).join(', ')}
@@ -1095,7 +1203,7 @@ function CatalogContent() {
             )}
             <button
               type="submit"
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-[#1e3a5f] hover:bg-[#16293f] rounded-lg transition-colors shadow-sm hover:scale-[1.01] duration-200"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-[#1e3a5f] hover:bg-[#16293f] transition-colors"
               disabled={submitting}
             >
               {submitting ? 'Submitting...' : 'Submit inquiry'}
@@ -1103,74 +1211,6 @@ function CatalogContent() {
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* ===== FOOTER ===== */}
-      <footer className="bg-slate-900 text-slate-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div>
-              <h3 className="text-white font-display font-bold mb-3">{company.name}</h3>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Flexible power, reliable solutions — since 1995.
-              </p>
-            </div>
-            <div>
-              <h4 className="text-white text-sm font-semibold mb-3">Company</h4>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <a
-                    href="#"
-                    onClick={(e) => e.preventDefault()}
-                    className="hover:text-white transition-colors"
-                  >
-                    About us
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#"
-                    onClick={(e) => e.preventDefault()}
-                    className="hover:text-white transition-colors"
-                  >
-                    Careers
-                  </a>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-white text-sm font-semibold mb-3">Support</h4>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <a
-                    href="#"
-                    onClick={(e) => e.preventDefault()}
-                    className="hover:text-white transition-colors"
-                  >
-                    Help center
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#"
-                    onClick={(e) => e.preventDefault()}
-                    className="hover:text-white transition-colors"
-                  >
-                    Privacy policy
-                  </a>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-white text-sm font-semibold mb-3">Contact</h4>
-              <p className="text-sm text-slate-400">WhatsApp: {company.whatsappNumber}</p>
-              <p className="text-sm text-slate-400 mt-1">Toll free: 1800 103 1247</p>
-            </div>
-          </div>
-          <div className="border-t border-slate-800 mt-8 pt-6 text-center text-xs text-slate-500">
-            © 2026 {company.name}. All rights reserved. Powered by Showcase AI
-          </div>
-        </div>
-      </footer>
 
       {/* ===== BACK TO TOP ===== */}
       <AnimatePresence>

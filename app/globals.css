@@ -1,7 +1,7 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-
 @custom-variant dark (&:is(.dark *));
 
 /* app/globals.css */

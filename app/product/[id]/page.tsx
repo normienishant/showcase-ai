@@ -1,10 +1,9 @@
-// app/product/[id]/page.tsx
+// app/product/[id]/page.tsx — Product Detail Server Component
 import { notFound } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Metadata } from 'next';
 import ClientProductDetail from './client';
 
-// Generate metadata dynamically for SEO
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   try {
@@ -26,7 +25,6 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   }
 }
 
-// Server component that fetches data and passes to client component
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let product;

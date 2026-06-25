@@ -4,6 +4,7 @@ import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
 
+
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const display = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-display", weight: ["500", "600", "700", "800"] });
 
