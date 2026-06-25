@@ -256,7 +256,7 @@ export default function LeadCapturePage() {
                         <p className="text-[11px] text-[#0b1f3a] font-600" style={{ fontFamily: 'Barlow, sans-serif' }}>
                           {item.name}
                         </p>
-                        <p className="text-[9px] text-[#9ab0c4] font-mono">Qty: {item.quantity}</p>
+                        <p className="text-[9px] text-[#9ab0c4] font-mono">Qty: {(item as any).quantity || 1}</p>
                       </div>
                     </div>
                   ))}
