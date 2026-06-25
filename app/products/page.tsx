@@ -1,6 +1,6 @@
 // app/products/page.tsx — Figma Product Listing with Child Category Filtering
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Search, X, LayoutGrid, List, Filter, ChevronDown, ChevronUp, Heart } from 'lucide-react';
@@ -33,7 +33,8 @@ function FilterSection({ title, children, defaultOpen = true }: { title: string;
   );
 }
 
-export default function ProductListingPage() {
+// ─── Separate component that uses useSearchParams ────────────
+function ProductsContent() {
   const searchParams = useSearchParams();
   const [company, setCompany] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
@@ -353,5 +354,14 @@ export default function ProductListingPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Default export with Suspense ────────────────────────────
+export default function ProductListingPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">Loading products...</div>}>
+      <ProductsContent />
+    </Suspense>
   );
 }
