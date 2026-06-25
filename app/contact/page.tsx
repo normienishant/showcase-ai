@@ -1,4 +1,4 @@
-// app/contact/page.tsx — Figma Lead Capture UI (Fully Fixed)
+// app/contact/page.tsx — Lead Capture UI with fixed quantity
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -21,16 +21,14 @@ export default function LeadCapturePage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  // ─── Load company data on mount ──────────────────────────────
   useEffect(() => {
     const loadCompany = async () => {
       try {
         setLoading(true);
         const data = await api.getCompany('bpe');
-        console.log('✅ Company loaded:', data);
         setCompany(data);
       } catch (error) {
-        console.error('❌ Failed to load company:', error);
+        console.error('Failed to load company:', error);
         toast.error('Failed to load company data. Please refresh.');
       } finally {
         setLoading(false);
@@ -39,24 +37,17 @@ export default function LeadCapturePage() {
     loadCompany();
   }, []);
 
-  // ─── Handle form submission ──────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Validate company
     if (!company) {
       toast.error('Company data not loaded. Please refresh the page.');
       return;
     }
-
-    // Validate form fields
     if (!form.name || !form.email || !form.phone) {
       toast.error('Please fill in all required fields.');
       return;
     }
-
     setSubmitting(true);
-
     try {
       const payload = {
         name: form.name,
@@ -66,26 +57,17 @@ export default function LeadCapturePage() {
         message: form.message,
         wishlist_snapshot: items,
       };
-
-      console.log('📤 Submitting lead with payload:', payload);
-      console.log('📤 Company ID:', company.id);
-
-      const result = await api.submitLead(company.id, payload);
-      console.log('✅ Lead response:', result);
-
+      await api.submitLead(company.id, payload);
       toast.success('Inquiry submitted successfully!');
       router.push('/pdf-success');
     } catch (error: any) {
-      console.error('❌ Submit failed:', error);
-      // Show more detailed error
-      const errorMsg = error?.message || 'Failed to submit. Please try again.';
-      toast.error(errorMsg);
+      console.error('Submit failed:', error);
+      toast.error(error?.message || 'Failed to submit. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ─── Loading state ────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
@@ -97,7 +79,6 @@ export default function LeadCapturePage() {
     );
   }
 
-  // ─── Render ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#f8fafc]">
       <div className="bg-[#0b1f3a]">
@@ -116,7 +97,6 @@ export default function LeadCapturePage() {
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* ─── Form ──────────────────────────────────────────── */}
           <div className="lg:col-span-2">
             <form onSubmit={handleSubmit} className="border border-[#e8edf3] bg-white">
               <div className="bg-[#f2f5f8] border-b border-[#e8edf3] px-5 py-3">
@@ -126,7 +106,6 @@ export default function LeadCapturePage() {
               </div>
               <div className="p-5 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Name */}
                   <div>
                     <label className="block text-[11px] font-600 text-[#0b1f3a] uppercase tracking-wide mb-1.5">
                       Full Name <span className="text-[#1a6b3c]">*</span>
@@ -142,8 +121,6 @@ export default function LeadCapturePage() {
                       />
                     </div>
                   </div>
-
-                  {/* Email */}
                   <div>
                     <label className="block text-[11px] font-600 text-[#0b1f3a] uppercase tracking-wide mb-1.5">
                       Email <span className="text-[#1a6b3c]">*</span>
@@ -160,8 +137,6 @@ export default function LeadCapturePage() {
                       />
                     </div>
                   </div>
-
-                  {/* Phone */}
                   <div>
                     <label className="block text-[11px] font-600 text-[#0b1f3a] uppercase tracking-wide mb-1.5">
                       Phone <span className="text-[#1a6b3c]">*</span>
@@ -178,8 +153,6 @@ export default function LeadCapturePage() {
                       />
                     </div>
                   </div>
-
-                  {/* Company */}
                   <div>
                     <label className="block text-[11px] font-600 text-[#0b1f3a] uppercase tracking-wide mb-1.5">
                       Company / Organisation
@@ -195,8 +168,6 @@ export default function LeadCapturePage() {
                     </div>
                   </div>
                 </div>
-
-                {/* Message */}
                 <div>
                   <label className="block text-[11px] font-600 text-[#0b1f3a] uppercase tracking-wide mb-1.5">
                     Technical Requirements / Message
@@ -212,7 +183,6 @@ export default function LeadCapturePage() {
                     />
                   </div>
                 </div>
-
                 <button
                   type="submit"
                   disabled={submitting}
@@ -225,7 +195,6 @@ export default function LeadCapturePage() {
                   )}
                   {submitting ? 'Submitting...' : 'Submit Inquiry'}
                 </button>
-
                 <p className="text-center text-[11px] text-[#9ab0c4]">
                   Your data is handled confidentially. We do not share contact information with third parties.
                 </p>
@@ -233,7 +202,6 @@ export default function LeadCapturePage() {
             </form>
           </div>
 
-          {/* ─── Sidebar ────────────────────────────────────────── */}
           <div className="space-y-4">
             {items.length > 0 && (
               <div className="border border-[#e8edf3] bg-white">
@@ -256,14 +224,13 @@ export default function LeadCapturePage() {
                         <p className="text-[11px] text-[#0b1f3a] font-600" style={{ fontFamily: 'Barlow, sans-serif' }}>
                           {item.name}
                         </p>
-                        <p className="text-[9px] text-[#9ab0c4] font-mono">Qty: {(item as any).quantity || 1}</p>
+                        <p className="text-[9px] text-[#9ab0c4] font-mono">Qty: {item.quantity ?? 1}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-
             <div className="border border-[#1a6b3c]/30 bg-[#1a6b3c]/5 p-4">
               <p className="text-[12px] text-[#0b1f3a] mb-3 uppercase tracking-wide font-600" style={{ fontFamily: 'Barlow, sans-serif' }}>
                 Our Commitment

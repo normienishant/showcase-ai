@@ -1,4 +1,4 @@
-// app/wishlist/page.tsx — Figma Wishlist UI (NaN fixed)
+// app/wishlist/page.tsx — Wishlist with proper store methods
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -7,7 +7,7 @@ import { X, Plus, Minus, BookMarked, ArrowRight, FileDown, Send, ShoppingBag } f
 import { useWishlist } from '@/store/wishlist';
 
 export default function WishlistPage() {
-  const { items, removeFromWishlist, updateQuantity } = useWishlist();
+  const { items, removeItem, updateQuantity, totalQuantity } = useWishlist();
   const router = useRouter();
 
   if (items.length === 0) {
@@ -32,7 +32,7 @@ export default function WishlistPage() {
     );
   }
 
-  const totalQuantity = items.reduce((acc, item) => acc + (typeof item.quantity === 'number' ? item.quantity : 0), 0);
+  const totalQty = totalQuantity(); // from store
   const categoriesCovered = new Set(items.map(i => i.categoryId).filter(Boolean)).size;
 
   return (
@@ -82,7 +82,7 @@ export default function WishlistPage() {
                         <p className="text-[11px] text-[#9ab0c4] mt-0.5">Product</p>
                       </div>
                       <button
-                        onClick={() => removeFromWishlist(item.id)}
+                        onClick={() => removeItem(item.id)}
                         className="p-1.5 hover:bg-red-50 text-[#cdd5de] hover:text-red-500 transition-colors shrink-0"
                       >
                         <X size={14} />
@@ -93,14 +93,14 @@ export default function WishlistPage() {
                       <span className="text-[11px] text-[#9ab0c4] uppercase tracking-wide">Qty:</span>
                       <div className="flex items-center border border-[#cdd5de]">
                         <button
-                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          onClick={() => updateQuantity(item.id, (item.quantity || 1) - 1)}
                           className="w-7 h-6 flex items-center justify-center hover:bg-[#f2f5f8] text-[#5a6e82] border-r border-[#cdd5de] transition-colors"
                         >
                           <Minus size={10} />
                         </button>
-                        <span className="w-8 text-center text-[12px] text-[#0b1f3a] font-mono">{item.quantity}</span>
+                        <span className="w-8 text-center text-[12px] text-[#0b1f3a] font-mono">{item.quantity ?? 1}</span>
                         <button
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          onClick={() => updateQuantity(item.id, (item.quantity || 1) + 1)}
                           className="w-7 h-6 flex items-center justify-center hover:bg-[#f2f5f8] text-[#5a6e82] border-l border-[#cdd5de] transition-colors"
                         >
                           <Plus size={10} />
@@ -134,7 +134,7 @@ export default function WishlistPage() {
                   <tbody>
                     {[
                       ['Products selected', items.length],
-                      ['Total quantity', totalQuantity],
+                      ['Total quantity', totalQty],
                       ['Categories covered', categoriesCovered],
                     ].map(([k, v]) => (
                       <tr key={String(k)}>

@@ -1,4 +1,4 @@
-// app/pdf-success/page.tsx — Figma PDF Success UI with Download
+// app/pdf-success/page.tsx — PDF Success with fixed quantity
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -72,7 +72,7 @@ export default function PDFSuccessPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[12px] text-[#0b1f3a] font-600" style={{ fontFamily: 'Barlow, sans-serif' }}>{item.name}</p>
-                      <p className="text-[10px] text-[#9ab0c4] font-mono">Qty: {item.quantity}</p>
+                      <p className="text-[10px] text-[#9ab0c4] font-mono">Qty: {item.quantity ?? 1}</p>
                     </div>
                     <CheckCircle size={13} className="text-[#1a6b3c] shrink-0" />
                   </div>
