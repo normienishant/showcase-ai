@@ -1,4 +1,4 @@
-// app/page.tsx — Figma UI with Debounce & Stable Dropdown
+// app/page.tsx — Figma UI with Heart Icon (Full)
 'use client';
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
@@ -15,7 +15,7 @@ import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { CatalogPDF } from '@/components/PDFCatalog';
 import { extractIntent, getMatchingSeries } from '@/lib/searchTags';
-import { useDebounce } from '@/hooks/useDebounce'; // <-- NEW IMPORT
+import { useDebounce } from '@/hooks/useDebounce';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 const PDFDownloadLink = dynamic(
@@ -390,7 +390,7 @@ function CatalogContent() {
   // ─── RENDER ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-white font-sans antialiased">
-      {/* ===== HEADER ===== */}
+      {/* ===== HEADER (unchanged) ===== */}
       <header className="border-b border-[#cdd5de] bg-white sticky top-0 z-50">
         <div className="bg-[#0b1f3a] text-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 h-9 flex items-center justify-between">
@@ -731,7 +731,7 @@ function CatalogContent() {
         </div>
       </section>
 
-      {/* ===== FEATURED PRODUCT FAMILIES ===== */}
+      {/* ===== FEATURED PRODUCT FAMILIES (with Heart icon) ===== */}
       <section className="py-12 bg-[#f8fafc] border-b border-[#e8edf3]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center gap-4 mb-7">
@@ -760,7 +760,7 @@ function CatalogContent() {
                         isInWishlist ? 'bg-[#1a6b3c] text-white' : 'bg-white/90 text-[#5a6e82] hover:text-[#1a6b3c]'
                       }`}
                     >
-                      <BookMarked size={13} />
+                      <Heart size={13} fill={isInWishlist ? 'white' : 'none'} />
                     </button>
                     <div className="absolute bottom-0 left-0 right-0 bg-[#0b1f3a]/80 px-3 py-1.5">
                       <p className="text-[10px] text-[#7a9cc8] uppercase tracking-widest truncate font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
@@ -798,7 +798,7 @@ function CatalogContent() {
                             : 'border-[#cdd5de] text-[#5a6e82] hover:border-[#1a6b3c] hover:text-[#1a6b3c]'
                         }`}
                       >
-                        <BookMarked size={12} />
+                        <Heart size={12} fill={isInWishlist ? 'white' : 'none'} />
                       </button>
                     </div>
                   </div>
@@ -809,7 +809,7 @@ function CatalogContent() {
         </div>
       </section>
 
-      {/* ===== INDUSTRY SOLUTIONS ===== */}
+      {/* ===== INDUSTRY SOLUTIONS (unchanged) ===== */}
       <section className="py-12 border-b border-[#e8edf3]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center gap-4 mb-7">
@@ -848,7 +848,7 @@ function CatalogContent() {
         </div>
       </section>
 
-      {/* ===== PRODUCT SERIES SHOWCASE ===== */}
+      {/* ===== PRODUCT SERIES SHOWCASE (unchanged) ===== */}
       <section className="py-12 bg-[#f8fafc] border-b border-[#e8edf3]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center gap-4 mb-7">
@@ -922,7 +922,7 @@ function CatalogContent() {
         </div>
       </section>
 
-      {/* ===== INQUIRY CTA ===== */}
+      {/* ===== INQUIRY CTA (unchanged) ===== */}
       <section className="py-12 bg-[#0b1f3a]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
@@ -981,7 +981,7 @@ function CatalogContent() {
         </div>
       </section>
 
-      {/* ===== FOOTER ===== */}
+      {/* ===== FOOTER (unchanged) ===== */}
       <footer className="bg-[#0b1f3a] text-white mt-auto border-t border-[#1f3a5c]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-10">
@@ -1073,7 +1073,7 @@ function CatalogContent() {
         </div>
       </footer>
 
-      {/* ===== QUICK VIEW MODAL ===== */}
+      {/* ===== QUICK VIEW MODAL (with Heart icon) ===== */}
       <Dialog open={!!selectedProduct} onOpenChange={() => setSelectedProduct(null)}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-xl border-0">
           <DialogHeader>

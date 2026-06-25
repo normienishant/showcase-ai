@@ -1,28 +1,14 @@
-// app/wishlist/page.tsx — Figma Wishlist UI
+// app/wishlist/page.tsx — Figma Wishlist UI (NaN fixed)
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { X, Plus, Minus, BookMarked, ArrowRight, FileDown, Send, ShoppingBag, ChevronRight } from 'lucide-react';
+import { X, Plus, Minus, BookMarked, ArrowRight, FileDown, Send, ShoppingBag } from 'lucide-react';
 import { useWishlist } from '@/store/wishlist';
-import { api } from '@/lib/api';
 
 export default function WishlistPage() {
   const { items, removeFromWishlist, updateQuantity } = useWishlist();
   const router = useRouter();
-  const [company, setCompany] = useState<any>(null);
-
-  useEffect(() => {
-    const loadCompany = async () => {
-      try {
-        const data = await api.getCompany('bpe');
-        setCompany(data);
-      } catch (error) {
-        console.error('Failed to load company:', error);
-      }
-    };
-    loadCompany();
-  }, []);
 
   if (items.length === 0) {
     return (
@@ -45,6 +31,9 @@ export default function WishlistPage() {
       </div>
     );
   }
+
+  const totalQuantity = items.reduce((acc, item) => acc + (typeof item.quantity === 'number' ? item.quantity : 0), 0);
+  const categoriesCovered = new Set(items.map(i => i.categoryId).filter(Boolean)).size;
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
@@ -80,6 +69,7 @@ export default function WishlistPage() {
                   <div className="w-20 h-16 bg-[#eef1f5] overflow-hidden shrink-0 border border-[#e8edf3]">
                     <img src={item.images?.[0] || 'https://placehold.co/600x400/1a56db/white?text=No+Image'} alt={item.name} className="w-full h-full object-cover" />
                   </div>
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -98,6 +88,7 @@ export default function WishlistPage() {
                         <X size={14} />
                       </button>
                     </div>
+
                     <div className="flex items-center gap-2 mt-2.5">
                       <span className="text-[11px] text-[#9ab0c4] uppercase tracking-wide">Qty:</span>
                       <div className="flex items-center border border-[#cdd5de]">
@@ -143,8 +134,8 @@ export default function WishlistPage() {
                   <tbody>
                     {[
                       ['Products selected', items.length],
-                      ['Total quantity', items.reduce((a, b) => a + b.quantity, 0)],
-                      ['Categories covered', new Set(items.map(i => i.categoryId)).size],
+                      ['Total quantity', totalQuantity],
+                      ['Categories covered', categoriesCovered],
                     ].map(([k, v]) => (
                       <tr key={String(k)}>
                         <td className="py-1.5 text-[12px] text-[#5a6e82]">{k}</td>
@@ -173,6 +164,7 @@ export default function WishlistPage() {
                 </button>
               </div>
             </div>
+
             <div className="border border-[#1a6b3c]/30 bg-[#1a6b3c]/5 p-4">
               <p className="text-[12px] text-[#0b1f3a] mb-3 uppercase tracking-wide font-600" style={{ fontFamily: 'Barlow, sans-serif' }}>
                 Your PDF Catalog Includes:
