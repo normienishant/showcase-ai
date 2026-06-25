@@ -1,8 +1,20 @@
-// app/product/[id]/page.tsx — Product Detail Server Component
+// app/product/[id]/page.tsx — Static Generation for All Products
 import { notFound } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Metadata } from 'next';
 import ClientProductDetail from './client';
+
+export async function generateStaticParams() {
+  try {
+    const company = await api.getCompany('bpe');
+    const products = await api.getProducts(company.id);
+    return products.map((product) => ({
+      id: product.id,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;

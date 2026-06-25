@@ -1,4 +1,4 @@
-// components/PDFCatalog.tsx
+// components/PDFCatalog.tsx — Fixed TypeScript
 'use client';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 
@@ -25,9 +25,9 @@ export function CatalogPDF({ company, products }: { company: any; products: any[
           <View key={product.id} style={styles.productRow}>
             <Text style={styles.productName}>{product.name}</Text>
             <Text style={styles.specText}>{product.description}</Text>
-            {Object.entries(product.specs).map(([key, val]) => (
-  <Text key={key} style={styles.specText}>• {key}: {val as string}</Text>
-))}
+            {Object.entries(product.specs || {}).map(([key, val]) => (
+              <Text key={key} style={styles.specText}>• {key}: {val as string}</Text>
+            ))}
           </View>
         ))}
         <Text style={styles.footer}>Generated via Showcase AI | {new Date().toLocaleDateString()}</Text>

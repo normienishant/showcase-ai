@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Search, X, LayoutGrid, List, Filter, ChevronDown, ChevronUp, BookMarked } from 'lucide-react';
+import { Search, X, LayoutGrid, List, Filter, ChevronDown, ChevronUp, Heart } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useWishlist } from '@/store/wishlist';
 import { toast } from 'sonner';
@@ -272,7 +272,7 @@ export default function ProductListingPage() {
                                   : 'border-[#cdd5de] text-[#5a6e82] hover:border-[#1a6b3c] hover:text-[#1a6b3c]'
                               }`}
                             >
-                              <BookMarked size={11} />
+                              <Heart size={11} />
                               {isInWishlist ? 'Saved' : 'Shortlist'}
                             </button>
                           </div>
@@ -291,7 +291,7 @@ export default function ProductListingPage() {
                             isInWishlist ? 'bg-[#1a6b3c] text-white' : 'bg-white/90 text-[#5a6e82] hover:text-[#1a6b3c]'
                           }`}
                         >
-                          <BookMarked size={13} />
+                          <Heart size={13} />
                         </button>
                         <div className="absolute bottom-0 left-0 right-0 bg-[#0b1f3a]/80 px-3 py-1.5">
                           <p className="text-[10px] text-[#7a9cc8] uppercase tracking-widest truncate font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
@@ -329,7 +329,7 @@ export default function ProductListingPage() {
                                 : 'border-[#cdd5de] text-[#5a6e82] hover:border-[#1a6b3c] hover:text-[#1a6b3c]'
                             }`}
                           >
-                            <BookMarked size={12} />
+                            <Heart size={12} />
                           </button>
                         </div>
                       </div>

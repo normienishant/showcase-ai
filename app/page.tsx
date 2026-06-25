@@ -1,14 +1,14 @@
-// app/page.tsx — Figma UI with Heart Icon (Full)
 'use client';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Heart, MessageCircle, Trash2, Download, Eye,
   XCircle, ArrowUp, Menu, X, Zap, Lightbulb,
-  ChevronRight, BookMarked, Phone, Mail, FileDown,
-  CheckCircle, ArrowRight, MapPin
-} from 'lucide-react';
+  ChevronRight, Phone, Mail, FileDown,
+  CheckCircle, ArrowRight, MapPin, Home, Package, List, User
+} from 'lucide-react'; // ← Home, Package, List, User added
 import { api } from '@/lib/api';
 import { useWishlist } from '@/store/wishlist';
 import dynamic from 'next/dynamic';
@@ -17,7 +17,6 @@ import { CatalogPDF } from '@/components/PDFCatalog';
 import { extractIntent, getMatchingSeries } from '@/lib/searchTags';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-
 const PDFDownloadLink = dynamic(
   () => import('@react-pdf/renderer').then(mod => mod.PDFDownloadLink),
   { ssr: false }
@@ -59,16 +58,46 @@ function CatalogContent() {
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchInputRef, setSearchInputRef] = useState<HTMLInputElement | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const wishlist = useWishlist();
 
   // ─── DEBOUNCE SEARCH ────────────────────────────────────────
   const debouncedSearch = useDebounce(search, 300);
 
-  // ─── LOAD DATA ──────────────────────────────────────────────
+  // ─── LOAD DATA WITH LOCALSTORAGE CACHE ─────────────────────
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
+
+      // Check localStorage cache
+      const cached = localStorage.getItem('bpe-products');
+      if (cached) {
+        try {
+          const { data, timestamp } = JSON.parse(cached);
+          // Use cache if less than 5 minutes old
+          if (Date.now() - timestamp < 5 * 60 * 1000) {
+            setAllProducts(data);
+            setProducts(data);
+            setLoading(false);
+            // Still fetch company and categories from cache if available
+            const companyCached = localStorage.getItem('bpe-company');
+            if (companyCached) {
+              const { companyData } = JSON.parse(companyCached);
+              setCompany(companyData);
+              // Also fetch categories in background
+              try {
+                const cats = await api.getCategories(companyData.id);
+                setCategories(cats);
+                localStorage.setItem('bpe-categories', JSON.stringify({ data: cats, timestamp: Date.now() }));
+              } catch {}
+              return;
+            }
+          }
+        } catch {}
+      }
+
       try {
         let companyData;
         try {
@@ -80,6 +109,7 @@ function CatalogContent() {
           return;
         }
         setCompany(companyData);
+        localStorage.setItem('bpe-company', JSON.stringify({ companyData, timestamp: Date.now() }));
 
         let cats: any[] = [];
         try {
@@ -89,6 +119,7 @@ function CatalogContent() {
           toast.error('Failed to load categories');
         }
         setCategories(cats);
+        localStorage.setItem('bpe-categories', JSON.stringify({ data: cats, timestamp: Date.now() }));
 
         let prods: any[] = [];
         try {
@@ -100,6 +131,7 @@ function CatalogContent() {
         if (!Array.isArray(prods)) prods = [];
         setAllProducts(prods);
         setProducts(prods);
+        localStorage.setItem('bpe-products', JSON.stringify({ data: prods, timestamp: Date.now() }));
       } catch (error) {
         console.error('Unexpected error:', error);
         toast.error('Failed to load catalog');
@@ -109,6 +141,39 @@ function CatalogContent() {
     };
     loadData();
   }, []);
+
+  // ─── IMPROVED DROPDOWN POSITIONING ──────────────────────
+  useEffect(() => {
+    if (!showDropdown || !searchInputRef) return;
+
+    const updatePosition = () => {
+      if (!searchInputRef) return;
+      const rect = searchInputRef.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    };
+
+    const throttledUpdate = () => {
+      if (scrollTimeout.current) return;
+      scrollTimeout.current = setTimeout(() => {
+        updatePosition();
+        scrollTimeout.current = null;
+      }, 100);
+    };
+
+    updatePosition();
+    window.addEventListener('scroll', throttledUpdate, { passive: true });
+    window.addEventListener('resize', throttledUpdate, { passive: true });
+
+    return () => {
+      if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+      window.removeEventListener('scroll', throttledUpdate);
+      window.removeEventListener('resize', throttledUpdate);
+    };
+  }, [showDropdown, searchInputRef, search]);
 
   // ─── HELPERS ────────────────────────────────────────────────
   const getCategoryIds = (catId: string): string[] => {
@@ -390,7 +455,7 @@ function CatalogContent() {
   // ─── RENDER ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-white font-sans antialiased">
-      {/* ===== HEADER (unchanged) ===== */}
+      {/* ===== HEADER ===== */}
       <header className="border-b border-[#cdd5de] bg-white sticky top-0 z-50">
         <div className="bg-[#0b1f3a] text-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 h-9 flex items-center justify-between">
@@ -451,7 +516,7 @@ function CatalogContent() {
               href="/wishlist"
               className="relative flex items-center gap-1.5 px-3 py-1.5 border border-[#cdd5de] hover:border-[#0b1f3a] text-[12px] font-medium text-[#0b1f3a] transition-colors"
             >
-              <BookMarked size={13} />
+              <Heart size={13} />
               <span className="hidden sm:inline">Wishlist</span>
               {wishlist.items.length > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 bg-[#1a6b3c] text-white text-[9px] font-700 min-w-[16px] h-4 rounded-full flex items-center justify-center px-1">
@@ -467,8 +532,12 @@ function CatalogContent() {
               Request Quote
             </Link>
 
-            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="md:hidden p-2 text-[#5a6e82]">
-              {isMobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="md:hidden p-2 text-[#5a6e82] hover:text-[#0b1f3a]"
+              aria-label="Open menu"
+            >
+              <Menu size={18} />
             </button>
           </div>
         </div>
@@ -490,6 +559,67 @@ function CatalogContent() {
         </div>
       </header>
 
+      {/* ===== MOBILE MENU DRAWER ===== */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/50 z-[9999]"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed top-0 right-0 w-72 h-full bg-white z-[99999] shadow-2xl flex flex-col"
+            >
+              <div className="flex items-center justify-between px-5 h-16 border-b border-[#e8edf3]">
+                <span className="text-[16px] font-700 uppercase text-[#0b1f3a]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                  Menu
+                </span>
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 hover:bg-[#f2f5f8] rounded-full transition-colors"
+                >
+                  <X size={18} className="text-[#5a6e82]" />
+                </button>
+              </div>
+              <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+                {[
+                  { label: 'Home', href: '/', icon: Home },
+                  { label: 'Products', href: '/products', icon: Package },
+                  { label: 'Categories', href: '/categories', icon: List },
+                  { label: 'Wishlist', href: '/wishlist', icon: Heart },
+                  { label: 'Contact', href: '/contact', icon: MessageCircle },
+                  { label: 'Admin', href: '/admin', icon: User },
+                ].map(item => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      className="flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#0b1f3a] hover:bg-[#f2f5f8] rounded-lg transition-colors"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      <Icon size={18} className="text-[#5a6e82]" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+              <div className="p-4 border-t border-[#e8edf3]">
+                <p className="text-[11px] text-[#9ab0c4] text-center">© 2026 Showcase AI</p>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* ===== HERO ───────────────────────────────────────────── */}
       <section className="bg-[#0b1f3a] pt-10 pb-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -506,7 +636,6 @@ function CatalogContent() {
                 Explore our complete range of transformers, switchgear, solar systems, cables, and protection equipment. Shortlist products, generate PDF catalogs, and submit inquiries — all in one place.
               </p>
 
-              {/* Search with mode toggle and stable container */}
               <div className="flex flex-wrap items-center gap-2 mb-3">
                 <button
                   onClick={() => setSearchMode('product')}
@@ -530,7 +659,6 @@ function CatalogContent() {
                 </button>
               </div>
 
-              {/* ── SEARCH INPUT WITH DROPDOWN (STABLE CONTAINER) ── */}
               <div className="relative max-w-lg min-h-[64px]">
                 <div className="flex gap-0">
                   <div className="relative flex-1">
@@ -563,7 +691,6 @@ function CatalogContent() {
                   </button>
                 </div>
 
-                {/* Dropdown */}
                 {showDropdown && (
                   <div
                     className="absolute z-[9999] bg-white border border-[#e8edf3] shadow-xl max-h-80 overflow-y-auto w-full left-0"
@@ -589,9 +716,11 @@ function CatalogContent() {
                               setSearch(product.name);
                             }}
                           >
-                            <img
+                            <Image
                               src={imageUrl}
                               alt={product.name}
+                              width={48}
+                              height={48}
                               className="w-12 h-12 object-cover bg-[#eef1f5]"
                             />
                             <div className="flex-1 text-left min-w-0">
@@ -646,7 +775,6 @@ function CatalogContent() {
                 </p>
               )}
 
-              {/* Quick links */}
               <div className="mt-5 flex flex-wrap gap-2">
                 {['Distribution Transformers', 'MCC Panels', 'Solar Systems', 'VCB Switchgear'].map(q => (
                   <button
@@ -662,7 +790,6 @@ function CatalogContent() {
               </div>
             </div>
 
-            {/* Stats panel */}
             <div className="hidden lg:block">
               <div className="grid grid-cols-2 gap-3">
                 {[
@@ -715,9 +842,12 @@ function CatalogContent() {
                   onClick={() => setSelectedCategory(cat.id)}
                 >
                   <div className="w-full h-24 bg-[#f2f5f8] overflow-hidden mb-3 group-hover:opacity-90 transition-opacity">
-                    <img
+                    <Image
                       src={`https://placehold.co/600x400/1a56db/white?text=${encodeURIComponent(cat.name)}`}
                       alt={cat.name}
+                      width={200}
+                      height={96}
+                      unoptimized
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -731,7 +861,7 @@ function CatalogContent() {
         </div>
       </section>
 
-      {/* ===== FEATURED PRODUCT FAMILIES (with Heart icon) ===== */}
+      {/* ===== FEATURED PRODUCT FAMILIES ===== */}
       <section className="py-12 bg-[#f8fafc] border-b border-[#e8edf3]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center gap-4 mb-7">
@@ -753,7 +883,14 @@ function CatalogContent() {
               return (
                 <div key={product.id} className="border-r border-b border-[#e8edf3] bg-white hover:bg-[#f8fafc] transition-colors group flex flex-col">
                   <div className="relative bg-[#eef1f5] overflow-hidden h-[180px]">
-                    <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:opacity-90 transition-opacity" />
+                    <Image
+                      src={imageUrl}
+                      alt={product.name}
+                      width={300}
+                      height={180}
+                      unoptimized={imageUrl.includes('placehold.co')}
+                      className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                    />
                     <button
                       onClick={() => isInWishlist ? wishlist.removeItem(product.id) : wishlist.addItem(product)}
                       className={`absolute top-2.5 right-2.5 w-7 h-7 flex items-center justify-center transition-all ${
@@ -809,7 +946,7 @@ function CatalogContent() {
         </div>
       </section>
 
-      {/* ===== INDUSTRY SOLUTIONS (unchanged) ===== */}
+      {/* ===== INDUSTRY SOLUTIONS ===== */}
       <section className="py-12 border-b border-[#e8edf3]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center gap-4 mb-7">
@@ -848,7 +985,7 @@ function CatalogContent() {
         </div>
       </section>
 
-      {/* ===== PRODUCT SERIES SHOWCASE (unchanged) ===== */}
+      {/* ===== PRODUCT SERIES SHOWCASE ===== */}
       <section className="py-12 bg-[#f8fafc] border-b border-[#e8edf3]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center gap-4 mb-7">
@@ -872,7 +1009,13 @@ function CatalogContent() {
                 <div key={product.id} className={`border-b border-[#e8edf3] ${idx % 2 === 0 ? 'bg-white' : 'bg-[#f8fafc]'}`}>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
                     <div className="h-52 md:h-auto overflow-hidden bg-[#eef1f5]">
-                      <img src={imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                      <Image
+                        src={imageUrl}
+                        alt={product.name}
+                        width={400}
+                        height={208}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                     <div className="p-6 border-r border-[#e8edf3]">
                       <p className="text-[11px] text-[#1a6b3c] uppercase tracking-widest font-600" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
@@ -922,7 +1065,7 @@ function CatalogContent() {
         </div>
       </section>
 
-      {/* ===== INQUIRY CTA (unchanged) ===== */}
+      {/* ===== INQUIRY CTA ===== */}
       <section className="py-12 bg-[#0b1f3a]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
@@ -943,7 +1086,7 @@ function CatalogContent() {
                   href="/products"
                   className="flex items-center gap-2 px-5 py-2.5 bg-[#1a6b3c] hover:bg-[#155731] text-white text-[13px] font-600 uppercase tracking-wide transition-colors"
                 >
-                  <BookMarked size={14} />
+                  <Heart size={14} />
                   Start Shortlisting
                 </Link>
                 <Link
@@ -959,7 +1102,7 @@ function CatalogContent() {
             <div className="grid grid-cols-1 gap-3">
               {[
                 { icon: <Search size={16} className="text-[#1a6b3c]" />, step: '01', title: 'Discover Products', desc: 'Search and filter across 120+ industrial products.' },
-                { icon: <BookMarked size={16} className="text-[#1a6b3c]" />, step: '02', title: 'Build Wishlist', desc: 'Shortlist products and set required quantities.' },
+                { icon: <Heart size={16} className="text-[#1a6b3c]" />, step: '02', title: 'Build Wishlist', desc: 'Shortlist products and set required quantities.' },
                 { icon: <FileDown size={16} className="text-[#1a6b3c]" />, step: '03', title: 'Generate PDF Catalog', desc: 'Download a branded catalog with full specifications.' },
                 { icon: <CheckCircle size={16} className="text-[#1a6b3c]" />, step: '04', title: 'Submit Inquiry', desc: 'Our technical team responds within 24 hours.' },
               ].map(s => (
@@ -981,7 +1124,7 @@ function CatalogContent() {
         </div>
       </section>
 
-      {/* ===== FOOTER (unchanged) ===== */}
+      {/* ===== FOOTER ===== */}
       <footer className="bg-[#0b1f3a] text-white mt-auto border-t border-[#1f3a5c]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-10">
@@ -1073,7 +1216,7 @@ function CatalogContent() {
         </div>
       </footer>
 
-      {/* ===== QUICK VIEW MODAL (with Heart icon) ===== */}
+      {/* ===== QUICK VIEW MODAL ===== */}
       <Dialog open={!!selectedProduct} onOpenChange={() => setSelectedProduct(null)}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-xl border-0">
           <DialogHeader>
@@ -1084,9 +1227,11 @@ function CatalogContent() {
           {selectedProduct && (
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-slate-50 overflow-hidden border border-slate-200">
-                <img
+                <Image
                   src={(selectedProduct.images && selectedProduct.images[0]) || 'https://placehold.co/600x600/1a56db/white?text=No+Image'}
                   alt={selectedProduct.name}
+                  width={300}
+                  height={300}
                   className="w-full aspect-square object-cover"
                 />
               </div>
@@ -1233,7 +1378,7 @@ function CatalogContent() {
   );
 }
 
-export default function Home() {
+export default function CatalogPage() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center h-screen bg-white">Loading...</div>}>
       <CatalogContent />

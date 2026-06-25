@@ -1,13 +1,12 @@
-// app/product/[id]/client.tsx — Figma Product Detail UI (with Heart Icon)
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, MessageCircle, Share2, ArrowLeft, Check, ZoomIn, X, ChevronLeft, ChevronRight, Clock, Package, Ruler, Weight, Zap, ExternalLink, Phone, FileText } from 'lucide-react';
+import { Heart, MessageCircle, Share2, ArrowLeft, Check, ZoomIn, X, ChevronLeft, ChevronRight, Clock, Package, Ruler, Weight, Zap, ExternalLink, Phone, FileText, Download } from 'lucide-react';
 import { useWishlist } from '@/store/wishlist';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { Download } from 'lucide-react';
 
 interface Product {
   id: string;
@@ -25,6 +24,9 @@ interface Company {
   primaryColor: string;
   whatsappNumber: string;
 }
+
+// Helper to check if URL is a placeholder
+const isPlaceholder = (url: string) => url?.includes('placehold.co');
 
 export default function ClientProductDetail({ product, company }: { product: Product; company: Company }) {
   const [selectedImage, setSelectedImage] = useState(0);
@@ -82,7 +84,7 @@ export default function ClientProductDetail({ product, company }: { product: Pro
     `Hi BPE Team,\nI'm interested in the product: ${product.name}\n\n${product.description}\n\nPlease contact me.`
   );
 
-  const images = product.images || ['https://placehold.co/600x600/1a56db/white?text=No+Image'];
+  const images = product.images && product.images.length > 0 ? product.images : ['https://placehold.co/600x600/1a56db/white?text=No+Image'];
 
   const nextImage = () => setSelectedImage((prev) => (prev + 1) % images.length);
   const prevImage = () => setSelectedImage((prev) => (prev - 1 + images.length) % images.length);
@@ -147,7 +149,14 @@ export default function ClientProductDetail({ product, company }: { product: Pro
           {/* LEFT: Gallery */}
           <div>
             <div className="relative border border-[#e8edf3] bg-[#eef1f5] overflow-hidden" style={{ aspectRatio: '4/3' }}>
-              <img src={images[selectedImage]} alt={product.name} className="w-full h-full object-cover" />
+              <Image
+                src={images[selectedImage]}
+                alt={product.name}
+                width={600}
+                height={450}
+                className="w-full h-full object-cover"
+                unoptimized={isPlaceholder(images[selectedImage])}   // ← ADDED
+              />
               {images.length > 1 && (
                 <>
                   <button
@@ -178,7 +187,14 @@ export default function ClientProductDetail({ product, company }: { product: Pro
                       i === selectedImage ? 'border-[#0b1f3a]' : 'border-[#e8edf3] opacity-60 hover:opacity-100'
                     }`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <Image
+                      src={img}
+                      alt=""
+                      width={64}
+                      height={48}
+                      className="w-full h-full object-cover"
+                      unoptimized={isPlaceholder(img)}   // ← ADDED
+                    />
                   </button>
                 ))}
               </div>
@@ -299,7 +315,7 @@ export default function ClientProductDetail({ product, company }: { product: Pro
           </div>
         </div>
 
-        {/* TABS SECTION */}
+        {/* TABS SECTION (unchanged) */}
         <div className="mt-10 border border-[#e8edf3]">
           <div className="flex border-b border-[#e8edf3] bg-[#f8fafc]">
             {tabs.map(t => (
@@ -421,19 +437,26 @@ export default function ClientProductDetail({ product, company }: { product: Pro
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-0 border-t border-l border-[#e8edf3]">
               {relatedProducts.map(rel => {
-                const isInWishlist = wishlist.isInWishlist(rel.id);
+                const isInWishlistRel = wishlist.isInWishlist(rel.id);
                 const imageUrl = (rel.images && rel.images[0]) || 'https://placehold.co/600x400/1a56db/white?text=No+Image';
                 return (
                   <div key={rel.id} className="border-r border-b border-[#e8edf3] bg-white hover:bg-[#f8fafc] transition-colors group flex flex-col">
                     <div className="relative bg-[#eef1f5] overflow-hidden h-[140px]">
-                      <img src={imageUrl} alt={rel.name} className="w-full h-full object-cover group-hover:opacity-90 transition-opacity" />
+                      <Image
+                        src={imageUrl}
+                        alt={rel.name}
+                        width={300}
+                        height={140}
+                        className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                        unoptimized={isPlaceholder(imageUrl)}   // ← ADDED
+                      />
                       <button
-                        onClick={() => isInWishlist ? wishlist.removeItem(rel.id) : wishlist.addItem(rel)}
+                        onClick={() => isInWishlistRel ? wishlist.removeItem(rel.id) : wishlist.addItem(rel)}
                         className={`absolute top-2.5 right-2.5 w-7 h-7 flex items-center justify-center transition-all ${
-                          isInWishlist ? 'bg-[#1a6b3c] text-white' : 'bg-white/90 text-[#5a6e82] hover:text-[#1a6b3c]'
+                          isInWishlistRel ? 'bg-[#1a6b3c] text-white' : 'bg-white/90 text-[#5a6e82] hover:text-[#1a6b3c]'
                         }`}
                       >
-                        <Heart size={13} fill={isInWishlist ? 'white' : 'none'} />
+                        <Heart size={13} fill={isInWishlistRel ? 'white' : 'none'} />
                       </button>
                     </div>
                     <div className="p-4 flex flex-col flex-1 border-t border-[#e8edf3]">
