@@ -8,7 +8,8 @@ export async function generateStaticParams() {
   try {
     const company = await api.getCompany('bpe');
     const products = await api.getProducts(company.id);
-    return products.map(({ id }) => ({ id }));
+    // ✅ Fix: explicitly type the product parameter
+    return products.map((product: { id: string }) => ({ id: product.id }));
   } catch {
     return [];
   }
