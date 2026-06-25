@@ -1015,6 +1015,7 @@ function CatalogContent() {
                         width={400}
                         height={208}
                         className="w-full h-full object-cover"
+                        unoptimized={imageUrl.includes('placehold.co')}
                       />
                     </div>
                     <div className="p-6 border-r border-[#e8edf3]">
