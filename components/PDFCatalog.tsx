@@ -1,30 +1,20 @@
 'use client';
-import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 
-// Register fonts for better look
-Font.register({
-  family: 'Barlow',
-  fonts: [
-    { src: 'https://fonts.gstatic.com/s/barlow/v12/7cHpv4kjgoGqM7E_A8s52Hs.ttf', fontWeight: 400 },
-    { src: 'https://fonts.gstatic.com/s/barlow/v12/7cHqv4kjgoGqM7E3-0s51a4.ttf', fontWeight: 700 },
-  ],
-});
-
-// Color palette from brochure
+// Brand colors
 const colors = {
   primary: '#0b1f3a',    // dark blue
   secondary: '#1a6b3c',  // green
-  lightBg: '#f8fafc',
   border: '#e8edf3',
-  text: '#0b1f3a',
   textLight: '#5a6e82',
+  white: '#ffffff',
 };
 
 const styles = StyleSheet.create({
   page: {
     padding: 35,
     backgroundColor: '#ffffff',
-    fontFamily: 'Barlow',
+    fontFamily: 'Helvetica',
   },
   header: {
     marginBottom: 25,
@@ -43,6 +33,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
     textTransform: 'uppercase',
     letterSpacing: 1,
+    fontFamily: 'Helvetica-Bold',
   },
   companyTagline: {
     fontSize: 10,
@@ -69,6 +60,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginBottom: 4,
     textTransform: 'uppercase',
+    fontFamily: 'Helvetica-Bold',
   },
   productDesc: {
     fontSize: 11,
@@ -93,7 +85,7 @@ const styles = StyleSheet.create({
   specValue: {
     width: '60%',
     fontSize: 9,
-    color: colors.text,
+    color: colors.primary,
     fontWeight: 700,
   },
   footer: {
@@ -118,7 +110,6 @@ const styles = StyleSheet.create({
 });
 
 export function CatalogPDF({ company, products }: { company: any; products: any[] }) {
-  // Fallback if company data missing
   const companyName = company?.name || 'Showcase AI';
   const companyEmail = company?.email || 'sales@showcaseai.com';
   const companyPhone = company?.phone || '+91 98765 00000';
@@ -126,7 +117,7 @@ export function CatalogPDF({ company, products }: { company: any; products: any[
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* Header */}
+        {/* HEADER */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.companyName}>{companyName}</Text>
@@ -137,13 +128,13 @@ export function CatalogPDF({ company, products }: { company: any; products: any[
           </View>
         </View>
 
-        {/* Product List */}
+        {/* PRODUCTS */}
         {products.map((product) => (
           <View key={product.id} style={styles.productBlock}>
             <Text style={styles.productName}>{product.name}</Text>
             <Text style={styles.productDesc}>{product.description || ''}</Text>
 
-            {/* Specifications Table */}
+            {/* SPECIFICATIONS TABLE */}
             <View style={styles.specsTable}>
               {Object.entries(product.specs || {}).map(([key, value]) => (
                 <View key={key} style={styles.specRow}>
@@ -155,7 +146,7 @@ export function CatalogPDF({ company, products }: { company: any; products: any[
           </View>
         ))}
 
-        {/* Footer */}
+        {/* FOOTER */}
         <View style={styles.footer}>
           <View>
             <Text>© {new Date().getFullYear()} {companyName}. All rights reserved.</Text>
@@ -166,10 +157,12 @@ export function CatalogPDF({ company, products }: { company: any; products: any[
           </View>
         </View>
 
-        {/* Page number (optional) */}
-        <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => (
-          `Page ${pageNumber} of ${totalPages}`
-        )} fixed />
+        {/* PAGE NUMBER */}
+        <Text
+          style={styles.pageNumber}
+          render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          fixed
+        />
       </Page>
     </Document>
   );
