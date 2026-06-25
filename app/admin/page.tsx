@@ -735,7 +735,7 @@ export default function AdminPage() {
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-2.5">
                             <div className="w-7 h-7 bg-[#0b1f3a] flex items-center justify-center shrink-0">
-                              <span className="text-white text-[10px] font-700">{lead.name.split(' ').map(n => n[0]).join('').slice(0, 2)}</span>
+                              <span className="text-[10px] font-700">{lead.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}</span>
                             </div>
                             <div>
                               <p className="text-[12px] text-[#0b1f3a] font-600" style={{ fontFamily: 'Barlow, sans-serif' }}>{lead.name}</p>
