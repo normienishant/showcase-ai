@@ -1,7 +1,7 @@
-// backend/routes/aiAdvisor.js
 const router = require('express').Router();
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
+
+console.log('✅ AI Advisor route loaded, prisma:', !!prisma);
 
 // ─── Helper: extract product name from query ──────────────────
 function extractProductName(query) {
