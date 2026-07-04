@@ -7,6 +7,7 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 model Company {
   id              String     @id @default(cuid())
   name            String
@@ -71,5 +72,40 @@ model Lead {
   status           String   @default("new")
   companyId        String
   company          Company  @relation(fields: [companyId], references: [id])
+  visitorId        String?   // NEW: link to visitor tracking
   createdAt        DateTime @default(now())
+}
+
+// ===== NEW TRACKING MODELS =====
+model VisitorSession {
+  id           String   @id @default(cuid())
+  visitorId    String
+  sessionId    String   @unique
+  startedAt    DateTime @default(now())
+  lastActivity DateTime @default(now())
+  ipAddress    String?
+  userAgent    String?
+  referrer     String?
+  events       VisitorEvent[]
+}
+
+model VisitorEvent {
+  id         String   @id @default(cuid())
+  visitorId  String
+  sessionId  String
+  eventType  String
+  productId  String?
+  categoryId String?
+  eventData  Json?
+  createdAt  DateTime @default(now())
+  session    VisitorSession @relation(fields: [sessionId], references: [sessionId])
+}
+
+model IntentScore {
+  id         String   @id @default(cuid())
+  visitorId  String   @unique
+  score      Int      @default(0)
+  lastUpdated DateTime @default(now())
+  categoryId String?
+  productId  String?
 }
