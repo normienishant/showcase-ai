@@ -1,6 +1,7 @@
 // backend/routes/tracking.js
 const router = require('express').Router();
-const prisma = require('../lib/prisma');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
 // POST /api/track/event
 router.post('/event', async (req, res) => {
