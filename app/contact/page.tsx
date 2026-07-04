@@ -6,6 +6,7 @@ import { Send, User, Mail, Phone, Building2, MessageSquare, BookMarked, CheckCir
 import { useWishlist } from '@/store/wishlist';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
+import { trackLeadSubmit } from '@/lib/tracking';
 
 export default function LeadCapturePage() {
   const { items } = useWishlist();
@@ -57,7 +58,8 @@ export default function LeadCapturePage() {
         message: form.message,
         wishlist_snapshot: items,
       };
-      await api.submitLead(company.id, payload);
+      const result = await api.submitLead(company.id, payload);
+      trackLeadSubmit(result.id);
       toast.success('Inquiry submitted successfully!');
       router.push('/pdf-success');
     } catch (error: any) {

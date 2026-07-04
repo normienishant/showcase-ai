@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { X, Plus, Minus, BookMarked, ArrowRight, FileDown, Send, ShoppingBag } from 'lucide-react';
 import { useWishlist } from '@/store/wishlist';
+import { trackWishlistAdd, trackWishlistRemove, trackPDFDownload } from '@/lib/tracking';
 
 export default function WishlistPage() {
   const { items, removeItem, updateQuantity, totalQuantity } = useWishlist();
@@ -32,8 +33,23 @@ export default function WishlistPage() {
     );
   }
 
-  const totalQty = totalQuantity(); // from store
+  const totalQty = totalQuantity();
   const categoriesCovered = new Set(items.map(i => i.categoryId).filter(Boolean)).size;
+
+  const handleRemove = (id: string) => {
+    removeItem(id);
+    trackWishlistRemove(id);
+  };
+
+  const handleUpdateQuantity = (id: string, newQty: number) => {
+    updateQuantity(id, newQty);
+    // We only track if quantity increases; trackWishlistAdd/Remove already handled on add/remove
+  };
+
+  const handlePDFGenerate = () => {
+    trackPDFDownload(items.map(i => i.id));
+    router.push('/pdf-success');
+  };
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
@@ -82,7 +98,7 @@ export default function WishlistPage() {
                         <p className="text-[11px] text-[#9ab0c4] mt-0.5">Product</p>
                       </div>
                       <button
-                        onClick={() => removeItem(item.id)}
+                        onClick={() => handleRemove(item.id)}
                         className="p-1.5 hover:bg-red-50 text-[#cdd5de] hover:text-red-500 transition-colors shrink-0"
                       >
                         <X size={14} />
@@ -93,14 +109,14 @@ export default function WishlistPage() {
                       <span className="text-[11px] text-[#9ab0c4] uppercase tracking-wide">Qty:</span>
                       <div className="flex items-center border border-[#cdd5de]">
                         <button
-                          onClick={() => updateQuantity(item.id, (item.quantity || 1) - 1)}
+                          onClick={() => handleUpdateQuantity(item.id, (item.quantity || 1) - 1)}
                           className="w-7 h-6 flex items-center justify-center hover:bg-[#f2f5f8] text-[#5a6e82] border-r border-[#cdd5de] transition-colors"
                         >
                           <Minus size={10} />
                         </button>
                         <span className="w-8 text-center text-[12px] text-[#0b1f3a] font-mono">{item.quantity ?? 1}</span>
                         <button
-                          onClick={() => updateQuantity(item.id, (item.quantity || 1) + 1)}
+                          onClick={() => handleUpdateQuantity(item.id, (item.quantity || 1) + 1)}
                           className="w-7 h-6 flex items-center justify-center hover:bg-[#f2f5f8] text-[#5a6e82] border-l border-[#cdd5de] transition-colors"
                         >
                           <Plus size={10} />
@@ -149,7 +165,7 @@ export default function WishlistPage() {
               </div>
               <div className="p-4 space-y-2.5">
                 <button
-                  onClick={() => router.push('/pdf-success')}
+                  onClick={handlePDFGenerate}
                   className="flex items-center justify-center gap-2 w-full py-3 bg-[#1a6b3c] hover:bg-[#155731] text-white text-[12px] font-600 uppercase tracking-wide transition-colors"
                 >
                   <FileDown size={14} />

@@ -8,6 +8,7 @@ import { useWishlist } from '@/store/wishlist';
 import { api } from '@/lib/api';
 import dynamic from 'next/dynamic';
 import { CatalogPDF } from '@/components/PDFCatalog';
+import { trackPDFDownload } from '@/lib/tracking';
 
 const PDFDownloadLink = dynamic(
   () => import('@react-pdf/renderer').then(mod => mod.PDFDownloadLink),
@@ -29,7 +30,12 @@ export default function PDFSuccessPage() {
       }
     };
     loadCompany();
-  }, []);
+
+    // Track PDF download when this page loads
+    if (items.length > 0) {
+      trackPDFDownload(items.map(i => i.id));
+    }
+  }, [items]);
 
   if (!company) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;

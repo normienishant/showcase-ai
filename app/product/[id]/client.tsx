@@ -7,6 +7,7 @@ import { Heart, MessageCircle, Share2, ArrowLeft, Check, ZoomIn, X, ChevronLeft,
 import { useWishlist } from '@/store/wishlist';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { trackProductView, trackWishlistAdd, trackWishlistRemove } from '@/lib/tracking';
 
 interface Product {
   id: string;
@@ -25,7 +26,6 @@ interface Company {
   whatsappNumber: string;
 }
 
-// Helper to check if URL is a placeholder
 const isPlaceholder = (url: string) => url?.includes('placehold.co');
 
 export default function ClientProductDetail({ product, company }: { product: Product; company: Company }) {
@@ -38,9 +38,23 @@ export default function ClientProductDetail({ product, company }: { product: Pro
   const wishlist = useWishlist();
   const isInWishlist = wishlist.isInWishlist(product.id);
 
+  // Inside ClientProductDetail component, after other useEffects
+useEffect(() => {
+  if (product?.id) {
+    sessionStorage.setItem('currentProductId', product.id);
+  }
+}, [product?.id]);
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Track product view
+  useEffect(() => {
+    if (product.id) {
+      trackProductView(product.id);
+    }
+  }, [product.id]);
 
   useEffect(() => {
     const fetchRelated = async () => {
@@ -60,9 +74,11 @@ export default function ClientProductDetail({ product, company }: { product: Pro
   const handleAddToWishlist = () => {
     if (isInWishlist) {
       wishlist.removeItem(product.id);
+      trackWishlistRemove(product.id);
       toast.info(`Removed ${product.name} from wishlist`);
     } else {
       wishlist.addItem(product);
+      trackWishlistAdd(product.id);
       toast.success(`Added ${product.name} to wishlist`);
     }
   };
@@ -155,7 +171,7 @@ export default function ClientProductDetail({ product, company }: { product: Pro
                 width={600}
                 height={450}
                 className="w-full h-full object-cover"
-                unoptimized={isPlaceholder(images[selectedImage])}   // ← ADDED
+                unoptimized={isPlaceholder(images[selectedImage])}
               />
               {images.length > 1 && (
                 <>
@@ -193,7 +209,7 @@ export default function ClientProductDetail({ product, company }: { product: Pro
                       width={64}
                       height={48}
                       className="w-full h-full object-cover"
-                      unoptimized={isPlaceholder(img)}   // ← ADDED
+                      unoptimized={isPlaceholder(img)}
                     />
                   </button>
                 ))}
@@ -315,7 +331,7 @@ export default function ClientProductDetail({ product, company }: { product: Pro
           </div>
         </div>
 
-        {/* TABS SECTION (unchanged) */}
+        {/* TABS SECTION */}
         <div className="mt-10 border border-[#e8edf3]">
           <div className="flex border-b border-[#e8edf3] bg-[#f8fafc]">
             {tabs.map(t => (
@@ -448,10 +464,18 @@ export default function ClientProductDetail({ product, company }: { product: Pro
                         width={300}
                         height={140}
                         className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
-                        unoptimized={isPlaceholder(imageUrl)}   // ← ADDED
+                        unoptimized={isPlaceholder(imageUrl)}
                       />
                       <button
-                        onClick={() => isInWishlistRel ? wishlist.removeItem(rel.id) : wishlist.addItem(rel)}
+                        onClick={() => {
+                          if (isInWishlistRel) {
+                            wishlist.removeItem(rel.id);
+                            trackWishlistRemove(rel.id);
+                          } else {
+                            wishlist.addItem(rel);
+                            trackWishlistAdd(rel.id);
+                          }
+                        }}
                         className={`absolute top-2.5 right-2.5 w-7 h-7 flex items-center justify-center transition-all ${
                           isInWishlistRel ? 'bg-[#1a6b3c] text-white' : 'bg-white/90 text-[#5a6e82] hover:text-[#1a6b3c]'
                         }`}

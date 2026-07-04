@@ -1,4 +1,4 @@
-// app/admin/page.tsx — Complete with fixed branding state and all features
+// app/admin/page.tsx — Full with auto‑refresh, no flicker, session status, last page, and working visitor detail
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -7,7 +7,8 @@ import {
   LayoutDashboard, Package, FolderTree, Users, Settings, LogOut,
   Search, Plus, Edit, Trash2, Eye, Download, TrendingUp, Clock,
   Bell, User, X, Undo2, Loader2, FileDown, ArrowUpRight, Palette,
-  ChevronRight, EyeOff, Save, Copy
+  ChevronRight, EyeOff, Save, Copy, Activity, BarChart3,
+  RefreshCw
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,9 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 
-// ─── Countdown Toast (unchanged) ──────────────────────────────
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
+// ─── Countdown Toast ──────────────────────────────────────────
 function UndoToast({ productName, onUndo, onConfirm }: { productName: string; onUndo: () => void; onConfirm: () => void }) {
   const [progress, setProgress] = useState(100);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -74,7 +77,7 @@ export default function AdminPage() {
   const router = useRouter();
 
   // ─── STATE ──────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'categories' | 'leads' | 'branding'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'categories' | 'leads' | 'branding' | 'visitors'>('dashboard');
   const [loading, setLoading] = useState(true);
   const [company, setCompany] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
@@ -101,18 +104,30 @@ export default function AdminPage() {
   // ── Pending deletions (for products) ──
   const [pendingDeletions, setPendingDeletions] = useState<Set<string>>(new Set());
 
-  // ── Branding (FIXED: added all fields used in form) ──
+  // ── Branding ──
   const [branding, setBranding] = useState<any>({
     logoUrl: 'https://placehold.co/200x80/1a56db/white?text=BPE',
     primaryColor: '#1a56db',
     whatsappNumber: '+919311995859',
     websiteUrl: 'https://www.bpe.com',
-    companyName: 'Showcase AI',       // added
-    tagline: 'Product Catalog Platform', // added
-    email: 'sales@showcaseai.com',    // added
-    phone: '+91 98765 00000',         // added
-    address: 'Plot 45, MIDC Industrial Area, Pune', // added
+    companyName: 'Showcase AI',
+    tagline: 'Product Catalog Platform',
+    email: 'sales@showcaseai.com',
+    phone: '+91 98765 00000',
+    address: 'Plot 45, MIDC Industrial Area, Pune',
   });
+
+  // ── Visitors state ──
+  const [visitors, setVisitors] = useState<any[]>([]);
+  const [visitorLoading, setVisitorLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedVisitor, setSelectedVisitor] = useState<any>(null);
+  const [visitorEvents, setVisitorEvents] = useState<any[]>([]);
+  const [visitorScore, setVisitorScore] = useState<any>(null);
+  const [showVisitorDetail, setShowVisitorDetail] = useState(false);
+
+  // ── Auto-refresh timer ──
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // ─── EFFECTS ────────────────────────────────────────────────
   useEffect(() => {
@@ -129,6 +144,29 @@ export default function AdminPage() {
   useEffect(() => {
     if (isAuthenticated) loadData();
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'visitors') {
+      // Initial load with loading spinner
+      loadVisitors(true);
+      // Set up auto-refresh every 3 seconds (faster, with cache bust)
+      if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
+      refreshIntervalRef.current = setInterval(() => {
+        loadVisitors(false);
+      }, 3000);
+    } else {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+    }
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+    };
+  }, [isAuthenticated, activeTab]);
 
   // ─── DATA FETCH ─────────────────────────────────────────────
   const loadData = async () => {
@@ -150,6 +188,69 @@ export default function AdminPage() {
     }
   };
 
+  const loadVisitors = async (showLoading: boolean = true) => {
+    if (showLoading) {
+      setVisitorLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+    try {
+      // Add cache‑busting query param
+      const url = `${API_URL}/track/sessions?limit=20&_=${Date.now()}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.sessions) {
+        const now = new Date();
+        const sessionsWithDetails = data.sessions.map((session: any) => {
+          const sortedEvents = [...(session.events || [])].sort((a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          const latestEvent = sortedEvents[0];
+          let lastPage = 'Unknown';
+          if (latestEvent) {
+            if (latestEvent.eventType === 'page_view' && latestEvent.eventData?.path) {
+              lastPage = latestEvent.eventData.path;
+            } else if (latestEvent.eventType === 'product_view' && latestEvent.productId) {
+              lastPage = `/product/${latestEvent.productId}`;
+            } else if (latestEvent.eventType === 'ai_chat') {
+              lastPage = 'AI Chat';
+            } else {
+              lastPage = latestEvent.eventType || 'Unknown';
+            }
+          }
+          // Session status: Active if last activity <5 min, else Inactive
+          const lastActivityDate = new Date(session.lastActivity);
+          const diffMinutes = (now.getTime() - lastActivityDate.getTime()) / (1000 * 60);
+          const status = diffMinutes < 5 ? 'Active' : 'Inactive';
+          return { ...session, lastPage, status };
+        });
+        setVisitors(sessionsWithDetails);
+        console.log(`✅ Visitors loaded: ${sessionsWithDetails.length} sessions`);
+      } else {
+        console.warn('No sessions in response');
+      }
+    } catch (error) {
+      console.error('Failed to load visitors:', error);
+      if (showLoading) toast.error('Failed to load visitor data');
+    } finally {
+      setVisitorLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  const loadVisitorDetail = async (visitorId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/track/visitor/${visitorId}?_=${Date.now()}`);
+      const data = await response.json();
+      setVisitorEvents(data.events || []);
+      setVisitorScore(data.score || null);
+      setSelectedVisitor(visitorId);
+      setShowVisitorDetail(true);
+    } catch (error) {
+      toast.error('Failed to load visitor details');
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminUser');
@@ -157,7 +258,7 @@ export default function AdminPage() {
     toast.info('Logged out');
   };
 
-  // ─── PRODUCT CRUD (unchanged) ──────────────────────────────
+  // ─── PRODUCT CRUD ──────────────────────────────────────────
   const openProductModal = (product?: any) => {
     if (product) {
       setEditingProduct(product);
@@ -358,10 +459,9 @@ export default function AdminPage() {
   const saveBranding = () => {
     localStorage.setItem('bpe-branding', JSON.stringify(branding));
     toast.success('Branding settings saved (local storage)');
-    // api.adminUpdateBranding(branding);
   };
 
-  // ─── RENDER LOGIC (unchanged) ──────────────────────────────
+  // ─── RENDER LOGIC ──────────────────────────────────────────
   if (!isAuthenticated || loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-50">
@@ -385,6 +485,7 @@ export default function AdminPage() {
     { id: 'products', label: 'Products', icon: Package },
     { id: 'categories', label: 'Categories', icon: FolderTree },
     { id: 'leads', label: 'Leads', icon: Users },
+    { id: 'visitors', label: 'Visitors', icon: Activity },
     { id: 'branding', label: 'Branding', icon: Settings },
   ];
 
@@ -413,7 +514,7 @@ export default function AdminPage() {
   // ─── RENDER ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#f2f5f8] flex">
-      {/* Sidebar (unchanged) */}
+      {/* Sidebar */}
       <aside className="hidden lg:flex w-56 bg-[#0b1f3a] text-white flex-col shrink-0 h-screen sticky top-0">
         <div className="h-14 flex items-center px-4 border-b border-[#1f3a5c]">
           <div className="flex items-center gap-2.5">
@@ -480,7 +581,7 @@ export default function AdminPage() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* ── DASHBOARD ── (unchanged) ── */}
+          {/* ── DASHBOARD ── */}
           {activeTab === 'dashboard' && (
             <>
               <div className="border-b border-[#e8edf3] pb-4">
@@ -547,7 +648,6 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
-              {/* Recent Leads table (unchanged) */}
               <div className="bg-white border border-[#e8edf3]">
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#e8edf3] bg-[#f8fafc]">
                   <p className="text-[14px] text-[#0b1f3a] uppercase font-700" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>Recent Leads</p>
@@ -594,7 +694,7 @@ export default function AdminPage() {
             </>
           )}
 
-          {/* ── PRODUCTS TAB ── (unchanged) ── */}
+          {/* ── PRODUCTS TAB ── */}
           {activeTab === 'products' && (
             <div className="bg-white border border-[#e8edf3]">
               <div className="flex items-center justify-between p-5 border-b border-[#e8edf3] bg-[#f8fafc]">
@@ -663,7 +763,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* ─── CATEGORIES TAB ── with CRUD ── */}
+          {/* ─── CATEGORIES TAB ── */}
           {activeTab === 'categories' && (
             <div className="bg-white border border-[#e8edf3] p-5">
               <div className="flex items-center justify-between mb-4">
@@ -711,7 +811,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* ─── LEADS TAB ── with Eye detail + CSV Export ── */}
+          {/* ─── LEADS TAB ── */}
           {activeTab === 'leads' && (
             <div className="bg-white border border-[#e8edf3]">
               <div className="flex items-center justify-between p-5 border-b border-[#e8edf3] bg-[#f8fafc]">
@@ -774,7 +874,87 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* ─── BRANDING TAB ── (with fixed state) ── */}
+          {/* ─── VISITORS TAB ── (Updated: faster refresh, cache bust, full data) */}
+          {activeTab === 'visitors' && (
+            <div className="bg-white border border-[#e8edf3]">
+              <div className="flex items-center justify-between p-5 border-b border-[#e8edf3] bg-[#f8fafc]">
+                <p className="text-[14px] text-[#0b1f3a] uppercase font-700" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                  Visitor Intelligence
+                </p>
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] text-[#9ab0c4]">{visitors.length} active sessions</span>
+                  <button
+                    onClick={() => loadVisitors(false)}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#0b1f3a] hover:bg-[#1a3055] text-white text-[11px] font-600 uppercase tracking-wide transition-colors"
+                  >
+                    <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} /> Refresh
+                  </button>
+                </div>
+              </div>
+              {visitorLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-8 h-8 border-4 border-[#0b1f3a] border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : visitors.length === 0 ? (
+                <div className="text-center py-12 text-[#9ab0c4]">No visitor sessions recorded yet.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-[#e8edf3]">
+                        {['Visitor ID', 'Session ID', 'Last Activity', 'Status', 'Last Page', 'Intent Score', 'Events', 'Actions'].map(h => (
+                          <th key={h} className="px-4 py-2.5 text-left text-[10px] font-600 text-[#9ab0c4] uppercase tracking-widest bg-[#f8fafc]">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visitors.map((session) => (
+                        <tr key={session.id} className="border-b border-[#f2f5f8] hover:bg-[#f8fafc] transition-colors">
+                          <td className="px-4 py-3.5 font-mono text-[11px] text-[#0b1f3a]">{session.visitorId.slice(0, 12)}</td>
+                          <td className="px-4 py-3.5 font-mono text-[10px] text-[#9ab0c4]">{session.sessionId.slice(0, 12)}</td>
+                          <td className="px-4 py-3.5 text-[11px] text-[#5a6e82]">{new Date(session.lastActivity).toLocaleString()}</td>
+                          <td className="px-4 py-3.5">
+                            <span className={`px-2 py-0.5 text-[10px] font-700 uppercase tracking-wide border ${
+                              session.status === 'Active'
+                                ? 'border-[#1a6b3c] text-[#1a6b3c] bg-[#1a6b3c]/5'
+                                : 'border-[#b45309] text-[#b45309] bg-[#b45309]/5'
+                            }`}>
+                              {session.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="text-[11px] font-mono text-[#1a6b3c] bg-[#f2f5f8] px-2 py-0.5">
+                              {session.lastPage || 'Unknown'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className={`px-2.5 py-1 text-[10px] font-700 uppercase tracking-wide border ${
+                              (session.intentScore || 0) > 50 ? 'border-[#1a6b3c] text-[#1a6b3c] bg-[#1a6b3c]/5' :
+                              (session.intentScore || 0) > 20 ? 'border-[#b45309] text-[#b45309] bg-[#b45309]/5' :
+                              'border-[#9ab0c4] text-[#9ab0c4] bg-[#f2f5f8]'
+                            }`}>
+                              {session.intentScore || 0}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-[11px] text-[#5a6e82]">{session.eventCount || 0}</td>
+                          <td className="px-4 py-3.5">
+                            <button
+                              onClick={() => loadVisitorDetail(session.visitorId)}
+                              className="p-1.5 hover:bg-gray-100 rounded text-[#9ab0c4] hover:text-[#0b1f3a] transition-colors border border-transparent hover:border-[#e8edf3]"
+                            >
+                              <Eye size={13} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── BRANDING TAB ── */}
           {activeTab === 'branding' && (
             <div className="bg-white border border-[#e8edf3] p-5 max-w-2xl space-y-5">
               <div>
@@ -815,7 +995,7 @@ export default function AdminPage() {
         </main>
       </div>
 
-      {/* ─── PRODUCT MODAL ── (unchanged) ── */}
+      {/* ─── PRODUCT MODAL ── */}
       {showProductModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -934,6 +1114,36 @@ export default function AdminPage() {
                 </div>
               </div>
               <div><p className="text-[11px] text-slate-400 uppercase tracking-wider">Created</p><p className="text-sm">{new Date(selectedLead.createdAt).toLocaleString()}</p></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── VISITOR DETAIL MODAL ── */}
+      {showVisitorDetail && selectedVisitor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900">Visitor Details</h3>
+              <button onClick={() => { setShowVisitorDetail(false); setSelectedVisitor(null); }} className="text-slate-400 hover:text-slate-600 transition-colors p-1"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="space-y-4">
+              <div><p className="text-[11px] text-slate-400 uppercase tracking-wider">Visitor ID</p><p className="font-mono text-sm">{selectedVisitor}</p></div>
+              <div><p className="text-[11px] text-slate-400 uppercase tracking-wider">Intent Score</p><p className="font-bold text-lg">{visitorScore?.score || 0}</p></div>
+              <div><p className="text-[11px] text-slate-400 uppercase tracking-wider">Events</p>
+                {visitorEvents.length === 0 ? (
+                  <p className="text-sm text-slate-400">No events recorded.</p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto space-y-2">
+                    {visitorEvents.slice(0, 50).map((ev) => (
+                      <div key={ev.id} className="flex justify-between text-sm border-b border-slate-100 py-1.5">
+                        <span className="text-slate-600">{ev.eventType}</span>
+                        <span className="text-slate-400 text-xs">{new Date(ev.createdAt).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

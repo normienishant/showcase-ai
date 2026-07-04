@@ -22,7 +22,7 @@ export default function AdminLogin() {
         localStorage.setItem('adminToken', data.token);
         localStorage.setItem('adminUser', JSON.stringify(data.user));
         toast.success('Login successful!');
-        router.push('/admin/dashboard');
+        router.push('/admin'); // ✅ Fixed: /admin not /admin/dashboard
       } else {
         toast.error(data.error || 'Login failed');
       }

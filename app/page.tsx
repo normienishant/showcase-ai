@@ -8,7 +8,7 @@ import {
   XCircle, ArrowUp, Menu, X, Zap, Lightbulb,
   ChevronRight, Phone, Mail, FileDown,
   CheckCircle, ArrowRight, MapPin, Home, Package, List, User
-} from 'lucide-react'; // ← Home, Package, List, User added
+} from 'lucide-react';
 import { api } from '@/lib/api';
 import { useWishlist } from '@/store/wishlist';
 import dynamic from 'next/dynamic';
@@ -17,6 +17,9 @@ import { CatalogPDF } from '@/components/PDFCatalog';
 import { extractIntent, getMatchingSeries } from '@/lib/searchTags';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import AIAdvisor from '@/components/AIAdvisor';
+import { trackSearch, trackWishlistAdd, trackWishlistRemove } from '@/lib/tracking';
+
 const PDFDownloadLink = dynamic(
   () => import('@react-pdf/renderer').then(mod => mod.PDFDownloadLink),
   { ssr: false }
@@ -682,6 +685,7 @@ function CatalogContent() {
                   <button
                     onClick={() => {
                       if (search.trim()) {
+                        trackSearch(search);
                         // Trigger search immediately (debounce will handle)
                       }
                     }}
@@ -892,7 +896,15 @@ function CatalogContent() {
                       className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
                     />
                     <button
-                      onClick={() => isInWishlist ? wishlist.removeItem(product.id) : wishlist.addItem(product)}
+                      onClick={() => {
+                        if (isInWishlist) {
+                          wishlist.removeItem(product.id);
+                          trackWishlistRemove(product.id);
+                        } else {
+                          wishlist.addItem(product);
+                          trackWishlistAdd(product.id);
+                        }
+                      }}
                       className={`absolute top-2.5 right-2.5 w-7 h-7 flex items-center justify-center transition-all ${
                         isInWishlist ? 'bg-[#1a6b3c] text-white' : 'bg-white/90 text-[#5a6e82] hover:text-[#1a6b3c]'
                       }`}
@@ -928,7 +940,15 @@ function CatalogContent() {
                         View Details
                       </Link>
                       <button
-                        onClick={() => isInWishlist ? wishlist.removeItem(product.id) : wishlist.addItem(product)}
+                        onClick={() => {
+                          if (isInWishlist) {
+                            wishlist.removeItem(product.id);
+                            trackWishlistRemove(product.id);
+                          } else {
+                            wishlist.addItem(product);
+                            trackWishlistAdd(product.id);
+                          }
+                        }}
                         className={`px-3 py-2 text-[11px] font-600 border transition-colors ${
                           isInWishlist
                             ? 'bg-[#1a6b3c] border-[#1a6b3c] text-white'
@@ -1261,6 +1281,7 @@ function CatalogContent() {
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-[#1e3a5f] hover:bg-[#16293f] transition-colors"
                     onClick={() => {
                       wishlist.addItem(selectedProduct);
+                      trackWishlistAdd(selectedProduct.id);
                       toast.success(`Added ${selectedProduct.name}`);
                       setSelectedProduct(null);
                     }}
@@ -1375,6 +1396,9 @@ function CatalogContent() {
           </motion.button>
         )}
       </AnimatePresence>
+
+      {/* ===== AI ADVISOR (placed at the very end) ===== */}
+      <AIAdvisor />
     </div>
   );
 }
