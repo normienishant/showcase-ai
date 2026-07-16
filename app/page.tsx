@@ -7,7 +7,7 @@ import {
   Search, Heart, MessageCircle, Trash2, Download, Eye,
   XCircle, ArrowUp, Menu, X, Zap, Lightbulb,
   ChevronRight, Phone, Mail, FileDown,
-  CheckCircle, ArrowRight, MapPin, Home, Package, List, User
+  CheckCircle, ArrowRight, MapPin, Home, Package, List
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useWishlist } from '@/store/wishlist';
@@ -472,9 +472,6 @@ function CatalogContent() {
               <a href="mailto:sales@showcaseai.com" className="flex items-center gap-1.5 text-[11px] text-[#7a9cc8] hover:text-white transition-colors">
                 <Mail size={11} /> sales@showcaseai.com
               </a>
-              <Link href="/admin" className="text-[11px] text-[#7a9cc8] hover:text-white transition-colors border-l border-white/[0.15] pl-5">
-                Admin Portal
-              </Link>
             </div>
           </div>
         </div>
@@ -588,7 +585,6 @@ function CatalogContent() {
                   { label: 'Categories', href: '/categories', icon: List },
                   { label: 'Wishlist', href: '/wishlist', icon: Heart },
                   { label: 'Contact', href: '/contact', icon: MessageCircle },
-                  { label: 'Admin', href: '/admin', icon: User },
                 ].map(item => {
                   const Icon = item.icon;
                   return (
