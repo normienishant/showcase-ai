@@ -497,18 +497,7 @@ function CatalogContent() {
             </div>
           </Link>
 
-          <div className="hidden md:flex flex-1 max-w-md">
-            <div className="relative w-full">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9ab0c4]" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search transformers, switchgear, solar..."
-                className="w-full pl-9 pr-3 py-2 bg-[#f2f5f8] border border-[#cdd5de] text-[13px] text-[#0b1f3a] placeholder-[#9ab0c4] outline-none focus:border-[#1a6b3c] transition-colors"
-                ref={setSearchInputRef}
-              />
-            </div>
-          </div>
+          {/* 👇 TOP SEARCH BAR REMOVED – only the hamburger, wishlist, and quote remain */}
 
           <div className="flex items-center gap-2">
             <button className="md:hidden p-2 text-[#5a6e82] hover:text-[#0b1f3a]">

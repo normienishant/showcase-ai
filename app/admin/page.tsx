@@ -1,7 +1,8 @@
-// app/admin/page.tsx — Full with auto‑refresh, no flicker, session status, last page, and working visitor detail
+// app/admin/page.tsx — Complete with fixed branding state and all features + Visitors tab
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';  // <- added for the back button
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Package, FolderTree, Users, Settings, LogOut,
@@ -147,9 +148,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (isAuthenticated && activeTab === 'visitors') {
-      // Initial load with loading spinner
       loadVisitors(true);
-      // Set up auto-refresh every 3 seconds (faster, with cache bust)
       if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
       refreshIntervalRef.current = setInterval(() => {
         loadVisitors(false);
@@ -189,13 +188,9 @@ export default function AdminPage() {
   };
 
   const loadVisitors = async (showLoading: boolean = true) => {
-    if (showLoading) {
-      setVisitorLoading(true);
-    } else {
-      setIsRefreshing(true);
-    }
+    if (showLoading) setVisitorLoading(true);
+    else setIsRefreshing(true);
     try {
-      // Add cache‑busting query param
       const url = `${API_URL}/track/sessions?limit=20&_=${Date.now()}`;
       const response = await fetch(url);
       const data = await response.json();
@@ -218,16 +213,12 @@ export default function AdminPage() {
               lastPage = latestEvent.eventType || 'Unknown';
             }
           }
-          // Session status: Active if last activity <5 min, else Inactive
           const lastActivityDate = new Date(session.lastActivity);
           const diffMinutes = (now.getTime() - lastActivityDate.getTime()) / (1000 * 60);
           const status = diffMinutes < 5 ? 'Active' : 'Inactive';
           return { ...session, lastPage, status };
         });
         setVisitors(sessionsWithDetails);
-        console.log(`✅ Visitors loaded: ${sessionsWithDetails.length} sessions`);
-      } else {
-        console.warn('No sessions in response');
       }
     } catch (error) {
       console.error('Failed to load visitors:', error);
@@ -566,7 +557,15 @@ export default function AdminPage() {
               {menuItems.find(i => i.id === activeTab)?.label || 'Dashboard'}
             </h2>
           </div>
+          {/* ─── ADDED: Back to Dashboard Button ─── */}
           <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-600 text-[#5a6e82] border border-[#cdd5de] hover:border-[#0b1f3a] hover:text-[#0b1f3a] transition-colors rounded"
+            >
+              ← Back to Dashboard
+            </Link>
+
             <button className="relative p-1.5 text-[#9ab0c4] hover:text-[#0b1f3a] transition-colors">
               <Bell size={15} />
               <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-[#1a6b3c] rounded-full" />
@@ -874,7 +873,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* ─── VISITORS TAB ── (Updated: faster refresh, cache bust, full data) */}
+          {/* ─── VISITORS TAB ── */}
           {activeTab === 'visitors' && (
             <div className="bg-white border border-[#e8edf3]">
               <div className="flex items-center justify-between p-5 border-b border-[#e8edf3] bg-[#f8fafc]">
