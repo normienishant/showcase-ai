@@ -1,8 +1,7 @@
 // backend/routes/tracking.js
 const router = require('express').Router();
-const prisma = require('../lib/prisma');
-
-console.log('✅ Tracking route loaded, prisma:', !!prisma); // Debug log
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
 // POST /api/track/event
 router.post('/event', async (req, res) => {
@@ -13,7 +12,6 @@ router.post('/event', async (req, res) => {
   }
 
   try {
-    // 1. Upsert session
     await prisma.visitorSession.upsert({
       where: { sessionId },
       update: { lastActivity: new Date() },
@@ -28,7 +26,6 @@ router.post('/event', async (req, res) => {
       },
     });
 
-    // 2. Create event
     await prisma.visitorEvent.create({
       data: {
         visitorId,
@@ -41,7 +38,6 @@ router.post('/event', async (req, res) => {
       },
     });
 
-    // 3. Update intent score – only for key actions, and only once per (visitor, eventType, productId)
     const weights = {
       product_view: 5,
       wishlist_add: 10,
@@ -52,34 +48,18 @@ router.post('/event', async (req, res) => {
     };
     const scoreChange = weights[eventType] || 0;
     if (scoreChange !== 0) {
-      // Check if this exact event type + productId has already been scored for this visitor
       let shouldScore = true;
       if (productId) {
-        // For events with a productId, check if the visitor already has an event of the same type and productId
         const existing = await prisma.visitorEvent.findFirst({
-          where: {
-            visitorId,
-            eventType,
-            productId,
-          },
+          where: { visitorId, eventType, productId },
         });
-        if (existing) {
-          shouldScore = false; // Already scored this product for this event type
-        }
+        if (existing) shouldScore = false;
       } else {
-        // For events without productId (e.g., ai_chat), check if the event type already happened in this session
-        // We'll use sessionId to avoid scoring the same event type multiple times in one session
         const existing = await prisma.visitorEvent.findFirst({
-          where: {
-            sessionId,
-            eventType,
-          },
+          where: { sessionId, eventType },
         });
-        if (existing) {
-          shouldScore = false;
-        }
+        if (existing) shouldScore = false;
       }
-
       if (shouldScore) {
         const current = await prisma.intentScore.findUnique({ where: { visitorId } });
         const newScore = Math.max(0, (current?.score || 0) + scoreChange);
@@ -148,7 +128,7 @@ router.get('/session/:sessionId', async (req, res) => {
   }
 });
 
-// GET /api/track/sessions – list recent sessions
+// GET /api/track/sessions – list recent sessions (with lead info)
 router.get('/sessions', async (req, res) => {
   try {
     const sessions = await prisma.visitorSession.findMany({
@@ -159,14 +139,35 @@ router.get('/sessions', async (req, res) => {
       },
     });
     const visitorIds = sessions.map(s => s.visitorId);
+    // Fetch leads for these visitorIds
+    const leads = await prisma.lead.findMany({
+      where: { visitorId: { in: visitorIds } },
+      select: {
+        visitorId: true,
+        name: true,
+        email: true,
+        phone: true,
+        company: true,
+        message: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+    const leadMap = leads.reduce((acc, lead) => {
+      acc[lead.visitorId] = lead;
+      return acc;
+    }, {});
+
     const scores = await prisma.intentScore.findMany({
       where: { visitorId: { in: visitorIds } },
     });
     const scoreMap = scores.reduce((acc, s) => { acc[s.visitorId] = s.score; return acc; }, {});
+
     const result = sessions.map(s => ({
       ...s,
       intentScore: scoreMap[s.visitorId] || 0,
       eventCount: s.events.length,
+      lead: leadMap[s.visitorId] || null,
     }));
     res.json({ sessions: result });
   } catch (error) {

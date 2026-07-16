@@ -19,6 +19,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import AIAdvisor from '@/components/AIAdvisor';
 import { trackSearch, trackWishlistAdd, trackWishlistRemove } from '@/lib/tracking';
+import LeadCaptureModal from '@/components/LeadCaptureModal';
 
 const PDFDownloadLink = dynamic(
   () => import('@react-pdf/renderer').then(mod => mod.PDFDownloadLink),
@@ -43,6 +44,7 @@ function ProductSkeleton() {
 
 function CatalogContent() {
   // ─── STATE ──────────────────────────────────────────────────
+  const [leadCaptured, setLeadCaptured] = useState(false);
   const [company, setCompany] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
   const [allProducts, setAllProducts] = useState<any[]>([]);
@@ -65,6 +67,13 @@ function CatalogContent() {
   const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const wishlist = useWishlist();
+
+  // ─── LEAD CAPTURE CHECK ─────────────────────────────────────
+  useEffect(() => {
+    if (localStorage.getItem('lead_captured')) {
+      setLeadCaptured(true);
+    }
+  }, []);
 
   // ─── DEBOUNCE SEARCH ────────────────────────────────────────
   const debouncedSearch = useDebounce(search, 300);
@@ -458,6 +467,14 @@ function CatalogContent() {
   // ─── RENDER ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-white font-sans antialiased">
+      {/* ─── LEAD CAPTURE MODAL (appears on first visit) ─── */}
+      {!leadCaptured && company && (
+        <LeadCaptureModal
+          companyId={company.id}
+          onSuccess={() => setLeadCaptured(true)}
+        />
+      )}
+
       {/* ===== HEADER ===== */}
       <header className="border-b border-[#cdd5de] bg-white sticky top-0 z-50">
         <div className="bg-[#0b1f3a] text-white">
@@ -495,7 +512,6 @@ function CatalogContent() {
           </Link>
 
           {/* 👇 TOP SEARCH BAR REMOVED – only the hamburger, wishlist, and quote remain */}
-
           <div className="flex items-center gap-2">
             <button className="md:hidden p-2 text-[#5a6e82] hover:text-[#0b1f3a]">
               <Search size={17} />

@@ -2,7 +2,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';  // <- added for the back button
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Package, FolderTree, Users, Settings, LogOut,
@@ -125,6 +125,7 @@ export default function AdminPage() {
   const [selectedVisitor, setSelectedVisitor] = useState<any>(null);
   const [visitorEvents, setVisitorEvents] = useState<any[]>([]);
   const [visitorScore, setVisitorScore] = useState<any>(null);
+  const [visitorLead, setVisitorLead] = useState<any>(null);
   const [showVisitorDetail, setShowVisitorDetail] = useState(false);
 
   // ── Auto-refresh timer ──
@@ -235,6 +236,7 @@ export default function AdminPage() {
       const data = await response.json();
       setVisitorEvents(data.events || []);
       setVisitorScore(data.score || null);
+      setVisitorLead(data.lead || null);
       setSelectedVisitor(visitorId);
       setShowVisitorDetail(true);
     } catch (error) {
@@ -873,7 +875,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* ─── VISITORS TAB ── */}
+          {/* ─── VISITORS TAB ── (UPDATED with Name, Phone, Lead details) */}
           {activeTab === 'visitors' && (
             <div className="bg-white border border-[#e8edf3]">
               <div className="flex items-center justify-between p-5 border-b border-[#e8edf3] bg-[#f8fafc]">
@@ -901,51 +903,64 @@ export default function AdminPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-[#e8edf3]">
-                        {['Visitor ID', 'Session ID', 'Last Activity', 'Status', 'Last Page', 'Intent Score', 'Events', 'Actions'].map(h => (
+                        {['Name', 'Phone', 'Last Activity', 'Status', 'Last Page', 'Intent Score', 'Events', 'Actions'].map(h => (
                           <th key={h} className="px-4 py-2.5 text-left text-[10px] font-600 text-[#9ab0c4] uppercase tracking-widest bg-[#f8fafc]">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {visitors.map((session) => (
-                        <tr key={session.id} className="border-b border-[#f2f5f8] hover:bg-[#f8fafc] transition-colors">
-                          <td className="px-4 py-3.5 font-mono text-[11px] text-[#0b1f3a]">{session.visitorId.slice(0, 12)}</td>
-                          <td className="px-4 py-3.5 font-mono text-[10px] text-[#9ab0c4]">{session.sessionId.slice(0, 12)}</td>
-                          <td className="px-4 py-3.5 text-[11px] text-[#5a6e82]">{new Date(session.lastActivity).toLocaleString()}</td>
-                          <td className="px-4 py-3.5">
-                            <span className={`px-2 py-0.5 text-[10px] font-700 uppercase tracking-wide border ${
-                              session.status === 'Active'
-                                ? 'border-[#1a6b3c] text-[#1a6b3c] bg-[#1a6b3c]/5'
-                                : 'border-[#b45309] text-[#b45309] bg-[#b45309]/5'
-                            }`}>
-                              {session.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <span className="text-[11px] font-mono text-[#1a6b3c] bg-[#f2f5f8] px-2 py-0.5">
-                              {session.lastPage || 'Unknown'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <span className={`px-2.5 py-1 text-[10px] font-700 uppercase tracking-wide border ${
-                              (session.intentScore || 0) > 50 ? 'border-[#1a6b3c] text-[#1a6b3c] bg-[#1a6b3c]/5' :
-                              (session.intentScore || 0) > 20 ? 'border-[#b45309] text-[#b45309] bg-[#b45309]/5' :
-                              'border-[#9ab0c4] text-[#9ab0c4] bg-[#f2f5f8]'
-                            }`}>
-                              {session.intentScore || 0}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3.5 text-[11px] text-[#5a6e82]">{session.eventCount || 0}</td>
-                          <td className="px-4 py-3.5">
-                            <button
-                              onClick={() => loadVisitorDetail(session.visitorId)}
-                              className="p-1.5 hover:bg-gray-100 rounded text-[#9ab0c4] hover:text-[#0b1f3a] transition-colors border border-transparent hover:border-[#e8edf3]"
-                            >
-                              <Eye size={13} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {visitors.map((session) => {
+                        const leadName = session.lead?.name || session.visitorId.slice(0, 12);
+                        const leadPhone = session.lead?.phone || '—';
+                        return (
+                          <tr key={session.id} className="border-b border-[#f2f5f8] hover:bg-[#f8fafc] transition-colors">
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 bg-[#0b1f3a] flex items-center justify-center shrink-0 rounded-full">
+                                  <span className="text-white text-[10px] font-700">
+                                    {leadName.charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                                <span className="font-mono text-[12px] text-[#0b1f3a]">{leadName}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5 text-[11px] font-mono text-[#0b1f3a]">{leadPhone}</td>
+                            <td className="px-4 py-3.5 text-[11px] text-[#5a6e82]">{new Date(session.lastActivity).toLocaleString()}</td>
+                            <td className="px-4 py-3.5">
+                              <span className={`px-2 py-0.5 text-[10px] font-700 uppercase tracking-wide border ${
+                                session.status === 'Active'
+                                  ? 'border-[#1a6b3c] text-[#1a6b3c] bg-[#1a6b3c]/5'
+                                  : 'border-[#b45309] text-[#b45309] bg-[#b45309]/5'
+                              }`}>
+                                {session.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <span className="text-[11px] font-mono text-[#1a6b3c] bg-[#f2f5f8] px-2 py-0.5">
+                                {session.lastPage || 'Unknown'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <span className={`px-2.5 py-1 text-[10px] font-700 uppercase tracking-wide border ${
+                                (session.intentScore || 0) > 50 ? 'border-[#1a6b3c] text-[#1a6b3c] bg-[#1a6b3c]/5' :
+                                (session.intentScore || 0) > 20 ? 'border-[#b45309] text-[#b45309] bg-[#b45309]/5' :
+                                'border-[#9ab0c4] text-[#9ab0c4] bg-[#f2f5f8]'
+                              }`}>
+                                {session.intentScore || 0}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5 text-[11px] text-[#5a6e82]">{session.eventCount || 0}</td>
+                            <td className="px-4 py-3.5">
+                              <button
+                                onClick={() => loadVisitorDetail(session.visitorId)}
+                                className="p-1.5 hover:bg-gray-100 rounded text-[#9ab0c4] hover:text-[#0b1f3a] transition-colors border border-transparent hover:border-[#e8edf3]"
+                              >
+                                <Eye size={13} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1118,7 +1133,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ─── VISITOR DETAIL MODAL ── */}
+      {/* ─── VISITOR DETAIL MODAL ── (updated to show lead details) */}
       {showVisitorDetail && selectedVisitor && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -1127,13 +1142,63 @@ export default function AdminPage() {
               <button onClick={() => { setShowVisitorDetail(false); setSelectedVisitor(null); }} className="text-slate-400 hover:text-slate-600 transition-colors p-1"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-4">
-              <div><p className="text-[11px] text-slate-400 uppercase tracking-wider">Visitor ID</p><p className="font-mono text-sm">{selectedVisitor}</p></div>
-              <div><p className="text-[11px] text-slate-400 uppercase tracking-wider">Intent Score</p><p className="font-bold text-lg">{visitorScore?.score || 0}</p></div>
-              <div><p className="text-[11px] text-slate-400 uppercase tracking-wider">Events</p>
+              {visitorLead ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[11px] text-slate-400 uppercase tracking-wider">Name</p>
+                      <p className="font-medium text-[#0b1f3a]">{visitorLead.name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-400 uppercase tracking-wider">Phone</p>
+                      <p className="font-mono text-[#0b1f3a]">{visitorLead.phone || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-400 uppercase tracking-wider">Email</p>
+                      <p className="text-[#0b1f3a]">{visitorLead.email || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-400 uppercase tracking-wider">Company</p>
+                      <p className="text-[#0b1f3a]">{visitorLead.company || 'N/A'}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[11px] text-slate-400 uppercase tracking-wider">Message</p>
+                      <p className="text-[#0b1f3a]">{visitorLead.message || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-400 uppercase tracking-wider">Status</p>
+                      <span className={`px-2.5 py-1 text-[10px] font-700 uppercase tracking-wide border rounded ${
+                        visitorLead.status === 'new' ? 'border-yellow-400 text-yellow-600 bg-yellow-50' :
+                        visitorLead.status === 'contacted' ? 'border-blue-400 text-blue-600 bg-blue-50' :
+                        'border-green-400 text-green-600 bg-green-50'
+                      }`}>
+                        {visitorLead.status}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-400 uppercase tracking-wider">Lead Created</p>
+                      <p className="text-[#0b1f3a]">{new Date(visitorLead.createdAt).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <hr className="border-slate-200" />
+                </>
+              ) : (
+                <div className="text-sm text-slate-500">No lead captured for this visitor.</div>
+              )}
+              <div>
+                <p className="text-[11px] text-slate-400 uppercase tracking-wider">Visitor ID</p>
+                <p className="font-mono text-sm text-[#0b1f3a]">{selectedVisitor}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-400 uppercase tracking-wider">Intent Score</p>
+                <p className="font-bold text-lg text-[#0b1f3a]">{visitorScore?.score || 0}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-400 uppercase tracking-wider">Events</p>
                 {visitorEvents.length === 0 ? (
                   <p className="text-sm text-slate-400">No events recorded.</p>
                 ) : (
-                  <div className="max-h-48 overflow-y-auto space-y-2">
+                  <div className="max-h-48 overflow-y-auto space-y-2 border border-slate-100 rounded p-2">
                     {visitorEvents.slice(0, 50).map((ev) => (
                       <div key={ev.id} className="flex justify-between text-sm border-b border-slate-100 py-1.5">
                         <span className="text-slate-600">{ev.eventType}</span>
