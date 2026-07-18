@@ -11,12 +11,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Optional: cache headers for static assets
-app.use((req, res, next) => {
-  res.header('Cache-Control', 'public, max-age=300');
-  next();
-});
-
 // ─── Existing routes ──────────────────────────────────────
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/company', require('./routes/company'));
