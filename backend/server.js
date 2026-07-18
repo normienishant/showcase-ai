@@ -25,7 +25,7 @@ app.use('/api/admin/categories', require('./routes/adminCategories'));
 app.use('/api/companies', require('./routes/products'));
 app.use('/api/products', require('./routes/productById'));
 app.use('/api/admin/products', require('./routes/adminProducts'));
-app.use('/api/upload', require('./routes/upload'));
+//app.use('/api/upload', require('./routes/upload'));
 app.use('/api/companies', require('./routes/leads'));
 app.use('/api/admin', require('./routes/adminLeads'));
 
