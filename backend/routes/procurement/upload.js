@@ -1,34 +1,14 @@
-// backend/routes/procurement/upload.js
 const router = require('express').Router();
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const { upload } = require('../../lib/cloudinary');
 const prisma = require('../../lib/prisma');
 
-// Configure local storage for all files (including text)
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, '../../uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
-
-const upload = multer({ storage: storage });
-
-// POST /api/procurement/upload
 router.post('/', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    const fileUrl = req.file.secure_url;
     const fileName = req.file.originalname;
 
     const session = await prisma.procurementSession.create({
