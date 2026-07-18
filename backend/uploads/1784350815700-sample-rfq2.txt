@@ -1,0 +1,44 @@
+RFQ for Solar Power Plant (500 kW) – EPC Package
+
+Client: Green Energy Solutions Pvt. Ltd.
+Address: 12, Eco Park, Electronic City, Bengaluru – 560100
+Contact: Mr. Ravi Kumar (Project Manager) | +91 98765 43210 | ravi@greenenergy.in
+
+Scope of Work:
+Design, supply, installation, and commissioning of a 500 kW (AC) grid-connected solar PV power plant on a ground-mounted structure, including all civil works, electrical balance of system, and grid integration.
+
+BOQ (Bill of Quantities):
+1. Solar PV Modules (550Wp Mono Perc) – 1100 units
+2. Inverter (50 kW, 3-phase) – 10 units
+3. DC Cable (4 mm², solar certified) – 2500 meters
+4. AC Cable (3C×25 mm²) – 500 meters
+5. Mounting Structure (GI, hot-dip galvanized) – 1 set (for 500 kW)
+6. SCADA System with monitoring – 1 set
+7. Transformer (500 kVA, 11/0.415 kV) – 1 unit
+8. Earthing & Lightning Protection – 1 set
+9. Civil Foundation (concrete) – 1 lot
+10. Grid Synchronization Panel – 1 unit
+
+Deadlines:
+- Technical Bid Submission: 15-Aug-2026
+- Commercial Bid Submission: 25-Aug-2026
+- Project Completion (COD): 90 days from PO date
+
+Payment Terms:
+- 30% advance against PO
+- 40% on delivery of major equipment
+- 25% on successful commissioning
+- 5% retention for 1 year
+
+Performance Guarantee:
+- 25-year linear power output warranty for modules
+- 5-year comprehensive warranty on inverters
+- 1-year defect liability on workmanship
+
+Liquidated Damages:
+- 0.5% per day delay, subject to max 10% of contract value
+
+Special Conditions:
+- Bidders must have executed at least 2 MW of solar projects in last 3 years.
+- Site visit mandatory before bid submission.
+- Payment milestone linked to third-party inspection certificate.

@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+sample-rfq-with-rates.txt
+sample-rfq.txt
+sample-rfq2.txt
