@@ -1,7 +1,7 @@
 // app/admin/page.tsx — Complete with fixed branding state and all features + Visitors tab
 'use client';
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
@@ -76,11 +76,18 @@ function UndoToast({ productName, onUndo, onConfirm }: { productName: string; on
   );
 }
 
-export default function AdminPage() {
+// ─── Main component that uses useSearchParams ───────────────
+function AdminPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
 
   // ─── STATE ──────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'categories' | 'leads' | 'branding' | 'visitors'>('dashboard');
+  const validTabs = ['dashboard', 'products', 'categories', 'leads', 'branding', 'visitors'];
+  const defaultTab = 'dashboard';
+  const initialTab = tabFromUrl && validTabs.includes(tabFromUrl) ? tabFromUrl : defaultTab;
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'categories' | 'leads' | 'branding' | 'visitors'>(initialTab as any);
   const [loading, setLoading] = useState(true);
   const [company, setCompany] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
@@ -132,6 +139,13 @@ export default function AdminPage() {
 
   // ── Auto-refresh timer ──
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ─── Sync tab with URL ─────────────────────────────────────
+  useEffect(() => {
+    if (tabFromUrl && validTabs.includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl as any);
+    }
+  }, [tabFromUrl]);
 
   // ─── EFFECTS ────────────────────────────────────────────────
   useEffect(() => {
@@ -251,6 +265,15 @@ export default function AdminPage() {
     localStorage.removeItem('adminUser');
     router.push('/admin/login');
     toast.info('Logged out');
+  };
+
+  const handleTabChange = (tab: string) => {
+    if (tab === 'procurement') {
+      router.push('/procurement');
+      return;
+    }
+    setActiveTab(tab as any);
+    router.push(`/admin?tab=${tab}`);
   };
 
   // ─── PRODUCT CRUD ──────────────────────────────────────────
@@ -511,7 +534,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-[#f2f5f8] flex">
       {/* ─── SIDEBAR ─── */}
-      <AdminSidebar activeTab={activeTab} onLogout={handleLogout} />
+      <AdminSidebar activeTab={activeTab} onTabChange={handleTabChange} onLogout={handleLogout} />
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -1175,5 +1198,14 @@ export default function AdminPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Default export with Suspense ──────────────────────────
+export default function AdminPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen bg-slate-50">Loading...</div>}>
+      <AdminPageContent />
+    </Suspense>
   );
 }

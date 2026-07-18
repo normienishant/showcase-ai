@@ -1,7 +1,7 @@
 // components/AdminSidebar.tsx
 'use client';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Package, FolderTree, Users, Settings, LogOut,
   Activity, FileText, ChevronRight
@@ -9,31 +9,26 @@ import {
 
 interface AdminSidebarProps {
   activeTab?: string;
+  onTabChange?: (tab: string) => void;
   onLogout?: () => void;
 }
 
 const menuItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/admin' },
-  { id: 'products', label: 'Products', icon: Package, href: '/admin?tab=products' },
-  { id: 'categories', label: 'Categories', icon: FolderTree, href: '/admin?tab=categories' },
-  { id: 'leads', label: 'Leads', icon: Users, href: '/admin?tab=leads' },
-  { id: 'visitors', label: 'Visitors', icon: Activity, href: '/admin?tab=visitors' },
-  { id: 'branding', label: 'Branding', icon: Settings, href: '/admin?tab=branding' },
-  { id: 'procurement', label: 'Procurement', icon: FileText, href: '/procurement' },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'products', label: 'Products', icon: Package },
+  { id: 'categories', label: 'Categories', icon: FolderTree },
+  { id: 'leads', label: 'Leads', icon: Users },
+  { id: 'visitors', label: 'Visitors', icon: Activity },
+  { id: 'branding', label: 'Branding', icon: Settings },
+  { id: 'procurement', label: 'Procurement', icon: FileText },
 ];
 
-export default function AdminSidebar({ activeTab, onLogout }: AdminSidebarProps) {
+export default function AdminSidebar({ activeTab, onTabChange, onLogout }: AdminSidebarProps) {
   const pathname = usePathname();
 
   const isActive = (itemId: string) => {
     if (pathname === '/procurement') return itemId === 'procurement';
-    if (pathname === '/admin') return itemId === 'dashboard';
-    if (pathname?.startsWith('/admin')) {
-      const tab = new URLSearchParams(window.location.search).get('tab');
-      if (tab === itemId) return true;
-      if (!tab && itemId === 'dashboard') return true;
-    }
-    return false;
+    return activeTab === itemId;
   };
 
   return (
@@ -54,13 +49,29 @@ export default function AdminSidebar({ activeTab, onLogout }: AdminSidebarProps)
       </div>
       <nav className="flex-1 py-4">
         {menuItems.map(item => {
-          const active = isActive(item.id) || (activeTab === item.id);
+          const active = isActive(item.id);
           const Icon = item.icon;
+
+          if (item.id === 'procurement') {
+            return (
+              <Link
+                key={item.id}
+                href="/procurement"
+                className={`flex items-center gap-3 px-4 py-3 text-[12px] font-600 uppercase tracking-wide border-l-2 transition-all w-full ${
+                  active ? 'border-[#1a6b3c] bg-[#1a6b3c]/10 text-white' : 'border-transparent text-[#7a9cc8] hover:text-white hover:bg-white/[0.04]'
+                }`}
+              >
+                <Icon size={14} />
+                {item.label}
+              </Link>
+            );
+          }
+
           return (
-            <Link
+            <button
               key={item.id}
-              href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 text-[12px] font-600 uppercase tracking-wide border-l-2 transition-all w-full ${
+              onClick={() => onTabChange?.(item.id)}
+              className={`flex items-center gap-3 px-4 py-3 text-[12px] font-600 uppercase tracking-wide border-l-2 transition-all w-full text-left ${
                 active
                   ? 'border-[#1a6b3c] bg-[#1a6b3c]/10 text-white'
                   : 'border-transparent text-[#7a9cc8] hover:text-white hover:bg-white/[0.04]'
@@ -69,7 +80,7 @@ export default function AdminSidebar({ activeTab, onLogout }: AdminSidebarProps)
               <Icon size={14} />
               {item.label}
               {active && <ChevronRight size={10} className="ml-auto text-[#1a6b3c]" />}
-            </Link>
+            </button>
           );
         })}
       </nav>
