@@ -1,24 +1,23 @@
 // backend/lib/cloudinary.js
-const cloudinary = require('cloudinary');
+const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
 
-cloudinary.v2.config({
+cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 const storage = new CloudinaryStorage({
-  cloudinary: cloudinary.v2,
+  cloudinary: cloudinary,
   params: {
-    // Allow any file type (use 'raw' resource_type)
-    resource_type: 'auto', // this will detect file type automatically
     folder: 'showcase',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'txt', 'pdf', 'doc', 'docx'], // add text files
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'], // only images
+    resource_type: 'auto',
   },
 });
 
 const upload = multer({ storage });
 
-module.exports = { cloudinary: cloudinary.v2, upload };
+module.exports = { cloudinary, upload };
