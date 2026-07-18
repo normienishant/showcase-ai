@@ -1,6 +1,6 @@
 // app/procurement/layout.tsx
 'use client';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Bell } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
 import { useEffect, useState } from 'react';
@@ -11,6 +11,7 @@ export default function ProcurementLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isAuthenticated, setIsAuthenticated] = useState(true);
 
   useEffect(() => {
@@ -20,6 +21,37 @@ export default function ProcurementLayout({
       setIsAuthenticated(false);
     }
   }, [router]);
+
+  const isInSession = () => {
+    // Check if we're on a BOQ, PO, or Analysis page (i.e., in the middle of a session)
+    return /\/procurement\/(boq|po|analysis)\//.test(pathname || '');
+  };
+
+  const handleTabChange = (tab: string) => {
+    // If trying to leave procurement while in a session
+    if (tab !== 'procurement' && isInSession()) {
+      const confirmLeave = window.confirm(
+        'You are in the middle of creating a BOQ/PO. Are you sure you want to leave? Unsaved changes will be lost.'
+      );
+      if (!confirmLeave) return;
+    }
+
+    // If going to procurement (dashboard) from a session page, we also want to confirm
+    if (tab === 'procurement' && isInSession()) {
+      const confirmLeave = window.confirm(
+        'You are in the middle of creating a BOQ/PO. Are you sure you want to go to the dashboard? Unsaved changes will be lost.'
+      );
+      if (!confirmLeave) return;
+      router.push('/procurement');
+      return;
+    }
+
+    if (tab === 'procurement') {
+      router.push('/procurement');
+    } else {
+      router.push(`/admin?tab=${tab}`);
+    }
+  };
 
   if (!isAuthenticated) {
     return null;
@@ -33,7 +65,7 @@ export default function ProcurementLayout({
 
   return (
     <div className="min-h-screen bg-[#f2f5f8] flex">
-      <AdminSidebar activeTab="procurement" onLogout={handleLogout} />
+      <AdminSidebar activeTab="procurement" onTabChange={handleTabChange} onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 bg-white border-b border-[#e8edf3] flex items-center justify-between px-5 sticky top-0 z-30">
           <div className="flex items-center gap-3">

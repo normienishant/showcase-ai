@@ -1,6 +1,5 @@
 // components/AdminSidebar.tsx
 'use client';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Package, FolderTree, Users, Settings, LogOut,
@@ -9,7 +8,7 @@ import {
 
 interface AdminSidebarProps {
   activeTab?: string;
-  onTabChange?: (tab: string) => void;
+  onTabChange: (tab: string) => void;
   onLogout?: () => void;
 }
 
@@ -27,7 +26,7 @@ export default function AdminSidebar({ activeTab, onTabChange, onLogout }: Admin
   const pathname = usePathname();
 
   const isActive = (itemId: string) => {
-    if (pathname === '/procurement') return itemId === 'procurement';
+    if (itemId === 'procurement' && pathname?.startsWith('/procurement')) return true;
     return activeTab === itemId;
   };
 
@@ -51,26 +50,10 @@ export default function AdminSidebar({ activeTab, onTabChange, onLogout }: Admin
         {menuItems.map(item => {
           const active = isActive(item.id);
           const Icon = item.icon;
-
-          if (item.id === 'procurement') {
-            return (
-              <Link
-                key={item.id}
-                href="/procurement"
-                className={`flex items-center gap-3 px-4 py-3 text-[12px] font-600 uppercase tracking-wide border-l-2 transition-all w-full ${
-                  active ? 'border-[#1a6b3c] bg-[#1a6b3c]/10 text-white' : 'border-transparent text-[#7a9cc8] hover:text-white hover:bg-white/[0.04]'
-                }`}
-              >
-                <Icon size={14} />
-                {item.label}
-              </Link>
-            );
-          }
-
           return (
             <button
               key={item.id}
-              onClick={() => onTabChange?.(item.id)}
+              onClick={() => onTabChange(item.id)}
               className={`flex items-center gap-3 px-4 py-3 text-[12px] font-600 uppercase tracking-wide border-l-2 transition-all w-full text-left ${
                 active
                   ? 'border-[#1a6b3c] bg-[#1a6b3c]/10 text-white'
