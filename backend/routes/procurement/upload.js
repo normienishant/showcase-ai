@@ -1,3 +1,4 @@
+// backend/routes/procurement/upload.js
 const router = require('express').Router();
 const { upload } = require('../../lib/cloudinary');
 const prisma = require('../../lib/prisma');
@@ -8,6 +9,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    // Cloudinary returns secure_url
     const fileUrl = req.file.secure_url;
     const fileName = req.file.originalname;
 
@@ -23,7 +25,7 @@ router.post('/', upload.single('file'), async (req, res) => {
     res.json({ session, message: 'File uploaded successfully' });
   } catch (error) {
     console.error('Upload error:', error);
-    res.status(500).json({ error: 'Upload failed' });
+    res.status(500).json({ error: 'Upload failed', details: error.message });
   }
 });
 
