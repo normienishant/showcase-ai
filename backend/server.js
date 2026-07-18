@@ -3,6 +3,7 @@ require('dotenv').config();
 require('express-async-errors');
 const express = require('express');
 const cors = require('cors');
+const path = require('path');  // ← ADDED
 
 const app = express();
 
@@ -28,7 +29,17 @@ app.use('/api/upload', require('./routes/upload'));
 app.use('/api/companies', require('./routes/leads'));
 app.use('/api/admin', require('./routes/adminLeads'));
 
-// ─── NEW ROUTES ──────────────────────────────────────────
+// ─── PROCUREMENT ROUTES ──────────────────────────────────
+app.use('/api/procurement/sessions', require('./routes/procurement/sessions'));
+app.use('/api/procurement/upload', require('./routes/procurement/upload'));
+app.use('/api/procurement/analysis', require('./routes/procurement/analysis'));
+app.use('/api/procurement/boq', require('./routes/procurement/boq'));
+app.use('/api/procurement/po', require('./routes/procurement/po'));
+
+// ─── STATIC FILES FOR LOCAL UPLOADS ──────────────────────
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ─── TRACKING & AI ROUTES ──────────────────────────────────
 app.use('/api/track', require('./routes/tracking'));
 app.use('/api/ai', require('./routes/aiAdvisor'));
 

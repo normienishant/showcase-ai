@@ -9,12 +9,14 @@ import {
   Search, Plus, Edit, Trash2, Eye, Download, TrendingUp, Clock,
   Bell, User, X, Undo2, Loader2, FileDown, ArrowUpRight, Palette,
   ChevronRight, EyeOff, Save, Copy, Activity, BarChart3,
-  RefreshCw
+  RefreshCw,
+  FileText
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import AdminSidebar from '@/components/AdminSidebar';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
@@ -480,6 +482,7 @@ export default function AdminPage() {
     { id: 'leads', label: 'Leads', icon: Users },
     { id: 'visitors', label: 'Visitors', icon: Activity },
     { id: 'branding', label: 'Branding', icon: Settings },
+    { id: 'procurement', label: 'Procurement', icon: FileText },
   ];
 
   const stats = [
@@ -527,6 +530,23 @@ export default function AdminPage() {
           {menuItems.map(item => {
             const active = activeTab === item.id;
             const Icon = item.icon;
+
+            // If it's procurement, use a Link (opens separate page)
+            if (item.id === 'procurement') {
+              return (
+                <Link
+                  key={item.id}
+                  href="/procurement"
+                  className={`flex items-center gap-3 px-4 py-3 text-[12px] font-600 uppercase tracking-wide border-l-2 transition-all w-full ${
+                    active ? 'border-[#1a6b3c] bg-[#1a6b3c]/10 text-white' : 'border-transparent text-[#7a9cc8] hover:text-white hover:bg-white/[0.04]'
+                  }`}
+                >
+                  <Icon size={14} />
+                  {item.label}
+                </Link>
+              );
+            }
+
             return (
               <button
                 key={item.id}
@@ -875,7 +895,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* ─── VISITORS TAB ── (UPDATED with Name, Phone, Lead details) */}
+          {/* ─── VISITORS TAB ── */}
           {activeTab === 'visitors' && (
             <div className="bg-white border border-[#e8edf3]">
               <div className="flex items-center justify-between p-5 border-b border-[#e8edf3] bg-[#f8fafc]">
@@ -1133,7 +1153,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ─── VISITOR DETAIL MODAL ── (updated to show lead details) */}
+      {/* ─── VISITOR DETAIL MODAL ── */}
       {showVisitorDetail && selectedVisitor && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">

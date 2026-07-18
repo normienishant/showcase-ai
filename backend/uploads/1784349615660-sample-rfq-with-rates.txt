@@ -1,0 +1,18 @@
+RFQ for UPS Systems
+
+Client: BPE India Pvt. Ltd.
+Address: Plot 45, MIDC Industrial Area, Pimpri-Chinchwad, Pune — 411019
+
+Scope: Supply and installation of 20 UPS systems (10kVA each) with batteries.
+
+BOQ:
+1. UPS 10kVA – 20 units, rate ₹45,000 each
+2. Battery 12V 100Ah – 120 units, rate ₹8,500 each
+3. Battery racks – 20 units, rate ₹5,000 each
+
+Deadline: Submit by July 31, 2026
+Delivery: Within 30 days of PO
+
+Payment: 30% advance, 70% on delivery
+
+Penalty: 1% per day delay

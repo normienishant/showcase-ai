@@ -10,18 +10,18 @@ datasource db {
 }
 
 model Company {
-  id              String     @id @default(cuid())
-  name            String
-  slug            String     @unique
-  primaryColor    String?
-  logoUrl         String?
-  whatsappNumber  String?
-  websiteUrl      String?
-  categories      Category[]
-  products        Product[]
-  leads           Lead[]
-  admins          Admin[]
-  createdAt       DateTime   @default(now())
+  id             String     @id @default(cuid())
+  name           String
+  slug           String     @unique
+  primaryColor   String?
+  logoUrl        String?
+  whatsappNumber String?
+  websiteUrl     String?
+  createdAt      DateTime   @default(now())
+  admins         Admin[]
+  categories     Category[]
+  leads          Lead[]
+  products       Product[]
 }
 
 model Admin {
@@ -30,21 +30,21 @@ model Admin {
   email     String   @unique
   password  String
   companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
   createdAt DateTime @default(now())
+  company   Company  @relation(fields: [companyId], references: [id])
 }
 
 model Category {
   id        String     @id @default(cuid())
   name      String
   parentId  String?
+  companyId String
+  sortOrder Int        @default(0)
+  createdAt DateTime   @default(now())
+  company   Company    @relation(fields: [companyId], references: [id])
   parent    Category?  @relation("SubCategories", fields: [parentId], references: [id])
   children  Category[] @relation("SubCategories")
   products  Product[]
-  companyId String
-  company   Company    @relation(fields: [companyId], references: [id])
-  sortOrder Int        @default(0)
-  createdAt DateTime   @default(now())
 }
 
 model Product {
@@ -56,11 +56,11 @@ model Product {
   documents   Json?
   isVisible   Boolean  @default(true)
   categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id])
   companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  category    Category @relation(fields: [categoryId], references: [id])
+  company     Company  @relation(fields: [companyId], references: [id])
 }
 
 model Lead {
@@ -72,18 +72,17 @@ model Lead {
   wishlistSnapshot Json?
   status           String   @default("new")
   companyId        String
-  company          Company  @relation(fields: [companyId], references: [id])
-  visitorId        String?   // NEW: link to visitor tracking
+  visitorId        String?
   createdAt        DateTime @default(now())
+  company          Company  @relation(fields: [companyId], references: [id])
 }
 
-// ===== NEW TRACKING MODELS =====
 model VisitorSession {
-  id           String   @id @default(cuid())
+  id           String         @id @default(cuid())
   visitorId    String
-  sessionId    String   @unique
-  startedAt    DateTime @default(now())
-  lastActivity DateTime @default(now())
+  sessionId    String         @unique
+  startedAt    DateTime       @default(now())
+  lastActivity DateTime       @default(now())
   ipAddress    String?
   userAgent    String?
   referrer     String?
@@ -91,22 +90,34 @@ model VisitorSession {
 }
 
 model VisitorEvent {
-  id         String   @id @default(cuid())
+  id         String         @id @default(cuid())
   visitorId  String
   sessionId  String
   eventType  String
   productId  String?
   categoryId String?
   eventData  Json?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime       @default(now())
   session    VisitorSession @relation(fields: [sessionId], references: [sessionId])
 }
 
 model IntentScore {
-  id         String   @id @default(cuid())
-  visitorId  String   @unique
-  score      Int      @default(0)
+  id          String   @id @default(cuid())
+  visitorId   String   @unique
+  score       Int      @default(0)
   lastUpdated DateTime @default(now())
-  categoryId String?
-  productId  String?
+  categoryId  String?
+  productId   String?
+}
+
+model ProcurementSession {
+  id            String   @id @default(cuid())
+  fileName      String
+  fileUrl       String
+  status        String   @default("uploaded")
+  extractedData Json?
+  boqData       Json?
+  userId        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
