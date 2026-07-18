@@ -1,9 +1,18 @@
 // app/procurement/layout.tsx
 'use client';
 import { useRouter, usePathname } from 'next/navigation';
-import { Bell } from 'lucide-react';
+import { Bell, AlertTriangle, X } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
 import { useEffect, useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 export default function ProcurementLayout({
   children,
@@ -14,6 +23,10 @@ export default function ProcurementLayout({
   const pathname = usePathname();
   const [isAuthenticated, setIsAuthenticated] = useState(true);
 
+  // ── Confirmation modal state ──
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingTab, setPendingTab] = useState<string | null>(null);
+
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (!token) {
@@ -23,34 +36,46 @@ export default function ProcurementLayout({
   }, [router]);
 
   const isInSession = () => {
-    // Check if we're on a BOQ, PO, or Analysis page (i.e., in the middle of a session)
     return /\/procurement\/(boq|po|analysis)\//.test(pathname || '');
   };
 
   const handleTabChange = (tab: string) => {
-    // If trying to leave procurement while in a session
-    if (tab !== 'procurement' && isInSession()) {
-      const confirmLeave = window.confirm(
-        'You are in the middle of creating a BOQ/PO. Are you sure you want to leave? Unsaved changes will be lost.'
-      );
-      if (!confirmLeave) return;
-    }
-
-    // If going to procurement (dashboard) from a session page, we also want to confirm
-    if (tab === 'procurement' && isInSession()) {
-      const confirmLeave = window.confirm(
-        'You are in the middle of creating a BOQ/PO. Are you sure you want to go to the dashboard? Unsaved changes will be lost.'
-      );
-      if (!confirmLeave) return;
-      router.push('/procurement');
+    // If we're not in a session, just navigate
+    if (!isInSession()) {
+      navigateToTab(tab);
       return;
     }
 
+    // If we're trying to leave procurement or go to dashboard
+    if (tab !== 'procurement' || (tab === 'procurement' && isInSession())) {
+      // Show custom modal
+      setPendingTab(tab);
+      setShowConfirm(true);
+      return;
+    }
+
+    navigateToTab(tab);
+  };
+
+  const navigateToTab = (tab: string) => {
     if (tab === 'procurement') {
       router.push('/procurement');
     } else {
       router.push(`/admin?tab=${tab}`);
     }
+  };
+
+  const handleConfirmLeave = () => {
+    setShowConfirm(false);
+    if (pendingTab) {
+      navigateToTab(pendingTab);
+      setPendingTab(null);
+    }
+  };
+
+  const handleCancelLeave = () => {
+    setShowConfirm(false);
+    setPendingTab(null);
   };
 
   if (!isAuthenticated) {
@@ -90,6 +115,40 @@ export default function ProcurementLayout({
           {children}
         </main>
       </div>
+
+      {/* ─── Custom Confirmation Modal ─── */}
+      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <DialogContent className="sm:max-w-md p-6 shadow-xl border-0 bg-white rounded-xl">
+          <DialogHeader className="flex flex-row items-start gap-4">
+            <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+              <AlertTriangle size={20} className="text-amber-600" />
+            </div>
+            <div>
+              <DialogTitle className="text-[18px] font-bold text-[#0b1f3a]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                Unsaved Changes
+              </DialogTitle>
+              <DialogDescription className="text-sm text-[#5a6e82] mt-1 leading-relaxed">
+                You are in the middle of creating a BOQ or PO. If you leave now, your progress will be lost.
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={handleCancelLeave}
+              className="flex-1 border-[#cdd5de] text-[#5a6e82] hover:bg-[#f2f5f8]"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmLeave}
+              className="flex-1 bg-[#b45309] hover:bg-[#92400e] text-white"
+            >
+              Leave Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
