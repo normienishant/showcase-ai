@@ -1,0 +1,103 @@
+
+
+GOVERNMENT OF UTTAR PRADESH
+UTTAR PRADESH POWER TRANSMISSION
+CORPORATION LIMITED (UPPTCL)
+NOTICE INVITING TENDER (NIT)
+Tender No.: UPPTCL/2026-27/SS-014
+Date of Issue: 21 July 2026
+SECTION 1: CLIENT DETAILS
+Client Name: Uttar Pradesh Power Transmission Corporation Limited (UPPTCL)
+Project Authority: Chief Engineer (Projects), Transmission Division-II
+Registered Office: Shakti Bhawan Extension, 14 Ashok Marg, Lucknow, Uttar Pradesh - 226001
+Project Site: 132/33 kV Substation, Greater Noida Industrial Zone, Gautam Buddha Nagar, Uttar Pradesh
+Contact Person: Mr. Rajesh Kumar Singh
+Email: ce.projects@upptcl.gov.in
+Phone: +91-522-2456789
+SECTION 2: PROJECT TITLE
+Supply, Installation, Testing and Commissioning of 132/33 kV Substation Equipment including Power Transformers, Switchgear, Protection Systems and Associated Civil Works.
+SECTION 3: SCOPE OF WORK
+1. Supply of 10 MVA power transformers.
+2. Supply and installation of 132 kV circuit breakers.
+3. Supply and laying of XLPE power cables.
+4. Installation of SCADA and protection systems.
+5. Earthing and lightning protection works.
+6. Construction of transformer foundations and cable trenches.
+7. Testing, commissioning, and performance validation.
+8. Submission of as-built drawings and operation manuals.
+9. Training of UPPTCL operating personnel.
+SECTION 4: BILL OF QUANTITIES (BOQ)
+1 | 10 MVA, 132/33 kV Power Transformer | Qty: 2 Nos | Unit Rate: 7,500,000 | Total: 15,000,000
+2 | 132 kV SF6 Circuit Breaker | Qty: 6 Nos | Unit Rate: 850,000 | Total: 5,100,000
+3 | Numerical Protection Relay Panels | Qty: 8 Nos | Unit Rate: 225,000 | Total: 1,800,000
+4 | XLPE Power Cable (3 Core, 240 sq.mm) | Qty: 3500 Meters | Unit Rate: 1,250 | Total: 4,375,000
+5 | Earthing System Installation | Qty: 1 Lot | Unit Rate: 950,000 | Total: 950,000
+6 | SCADA Integration & Configuration | Qty: 1 Job | Unit Rate: 1,750,000 | Total: 1,750,000
+7 | Civil Works (Foundations & Trenches) | Qty: 1 Lot | Unit Rate: 2,850,000 | Total: 2,850,000
+8 | Testing & Commissioning Services | Qty: 1 Job | Unit Rate: 1,250,000 | Total: 1,250,000
+FINANCIAL SUMMARY
+Total Contract Value (Excluding GST): INR 33,075,000
+GST @18%: INR 5,953,500
+Grand Total (Including GST): INR 39,028,500
+SECTION 5: IMPORTANT DATES
+
+Pre-Bid Meeting: 28 July 2026, 11:00 AM
+Last Date for Queries: 31 July 2026, 05:00 PM
+Bid Submission Deadline: 10 August 2026, 03:00 PM
+Technical Bid Opening: 10 August 2026, 04:00 PM
+Financial Bid Opening: 14 August 2026, 11:00 AM
+Letter of Award (Tentative): 20 August 2026
+Project Milestones:
+- Purchase Order Release: Within 7 Days of Award
+- Material Supply Completion: Within 90 Days
+- Installation Completion: Within 120 Days
+- Testing & Commissioning: Within 135 Days
+- Final Project Handover: Within 150 Days
+SECTION 6: PAYMENT TERMS
+- 10% advance payment against Performance Bank Guarantee.
+- 40% upon successful delivery of equipment at site.
+- 30% upon completion of installation activities.
+- 15% upon successful testing and commissioning.
+- 5% retained for twelve (12) months as retention money.
+SECTION 7: RISKS, PENALTIES AND LIQUIDATED DAMAGES
+Liquidated Damages:
+- 0.5% of total contract value per week of delay.
+- Maximum LD capped at 10%.
+Penalty Clauses:
+- INR 100,000 penalty for failure to mobilize within 15 days.
+- Non-compliance with specifications may result in rejection.
+- Safety violations may incur additional penalties.
+Risk Factors:
+- Supply chain disruptions.
+- Extreme weather delays.
+- Failure of factory acceptance tests.
+- Delayed statutory approvals.
+- Site access restrictions.
+SECTION 8: TECHNICAL REQUIREMENTS
+Transformer:
+- Capacity: 10 MVA
+- Voltage Ratio: 132/33 kV
+- Cooling Type: ONAN/ONAF
+- Frequency: 50 Hz
+- Vector Group: Dyn11
+Circuit Breaker:
+- Rated Voltage: 145 kV
+- Breaking Capacity: 40 kA
+Compliance:
+- IS 2026
+- IEC 60076
+- IEC 62271
+
+- CEA Regulations
+- ISO 9001:2015
+SECTION 9: SPECIAL CONDITIONS
+- Minimum annual turnover: INR 100 Million.
+- Performance Bank Guarantee: 10% of contract value.
+- Warranty: 24 months from commissioning.
+- Quantities may vary by ±15%.
+- Jurisdiction: Lucknow Courts.
+SECTION 10: DECLARATION
+The bidder acknowledges acceptance of all tender terms and conditions.
+Authorized Signatory
+Chief Engineer (Projects)
+UPPTCL
