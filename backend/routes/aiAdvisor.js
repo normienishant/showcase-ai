@@ -1,17 +1,17 @@
+// backend/routes/aiAdvisor.js
 const router = require('express').Router();
 const prisma = require('../lib/prisma');
+const { chatWithDocument } = require('../lib/groq');
 
 console.log('✅ AI Advisor route loaded, prisma:', !!prisma);
 
 // ─── Helper: extract product name from query ──────────────────
 function extractProductName(query) {
   const lower = query.toLowerCase();
-  // Patterns for product codes (BP, PS, EPX, etc.) or full names.
   const codePattern = /\b([A-Z]{2,4}\s*[\d\w]+)\b/i;
   const codeMatch = query.match(codePattern);
   if (codeMatch) return codeMatch[1].trim();
 
-  // Patterns like "details of X", "tell me about X"
   const phrases = [
     /(?:details|tell me|info|specs|about|for)\s+(?:of|on|about|for)?\s*([a-zA-Z0-9\s\-]+)/i,
   ];
@@ -19,7 +19,6 @@ function extractProductName(query) {
     const match = query.match(pattern);
     if (match && match[1]) {
       const maybeProduct = match[1].trim();
-      // Avoid matching generic words like "office", "computer", "solar"
       const genericWords = ['office', 'computer', 'solar', 'battery', 'ups', 'inverter', 'price', 'cost', 'warranty'];
       if (!genericWords.some(w => maybeProduct.toLowerCase().includes(w))) {
         return maybeProduct;
@@ -31,7 +30,6 @@ function extractProductName(query) {
 
 // ─── Helper: extract product name from assistant's last message ──
 function extractProductFromMessage(text) {
-  // Look for patterns like "NRGX 7.5kVA (Li-ion)" or "BP650V"
   const match = text.match(/[A-Z]{2,4}\s*[\d\w]+(\s*\([^)]*\))?/);
   return match ? match[0] : null;
 }
@@ -42,6 +40,37 @@ function isFollowUp(query) {
   return ['yes', 'no', 'ok', 'sure', 'more details', 'tell me more', 'elaborate', 'details', 'info', 'specs'].some(w => lower.includes(w));
 }
 
+// ─── Helper: get document context from session ────────────────
+async function getDocumentContext(sessionId) {
+  if (!sessionId) return null;
+  try {
+    const session = await prisma.procurementSession.findUnique({
+      where: { id: sessionId }
+    });
+    if (!session) return null;
+
+    const data = session.extractedData || {};
+    let context = '';
+
+    if (data.rawText) {
+      context = `Document Content:\n${data.rawText}`;
+    } else {
+      context = `
+Client Details: ${JSON.stringify(data.client || {})}
+Scope of Work: ${data.scope || 'N/A'}
+BOQ Items: ${JSON.stringify(data.boq || [])}
+Deadlines: ${JSON.stringify(data.deadlines || {})}
+Risks: ${JSON.stringify(data.risks || [])}
+Payment Terms: ${data.paymentTerms || 'N/A'}
+`;
+    }
+    return context;
+  } catch (e) {
+    console.error('Error fetching document context:', e);
+    return null;
+  }
+}
+
 // ─── Main route ────────────────────────────────────────────────
 router.post('/advisor', async (req, res) => {
   const { query, visitorId, sessionId, history, productId } = req.body;
@@ -49,13 +78,30 @@ router.post('/advisor', async (req, res) => {
   try {
     let productDetails = null;
     let productContext = '';
+    let documentContext = null;
+
+    // ── PRIORITY 1: If sessionId provided, use procurement document context ──
+    if (sessionId) {
+      documentContext = await getDocumentContext(sessionId);
+      if (documentContext) {
+        // Use chatWithDocument with the document context
+        try {
+          const reply = await chatWithDocument(documentContext, query, history || []);
+          return res.json({ reply });
+        } catch (error) {
+          console.error('Document chat error:', error);
+          // Fall through to product context if document chat fails
+        }
+      }
+    }
+
+    // ── PRIORITY 2: Product context (existing logic) ──────────
 
     // 1. Try to extract product name from the user's query
     let productName = extractProductName(query);
 
     // 2. If query is a follow‑up, look in the last assistant message
     if (!productName && isFollowUp(query) && history && history.length > 0) {
-      // Find the last assistant message
       for (let i = history.length - 1; i >= 0; i--) {
         if (history[i].role === 'assistant') {
           const extracted = extractProductFromMessage(history[i].content);
@@ -122,7 +168,7 @@ router.post('/advisor', async (req, res) => {
         `Specifications:\n${Object.entries(productDetails.specs || {}).map(([k,v]) => `  ${k}: ${v}`).join('\n')}\n` +
         `Would you like more information?`;
     }
-    // Office / computer queries (generic, no product context)
+    // Office / computer queries
     else if (lower.includes('computer') || lower.includes('office') || lower.includes('pc') || lower.includes('desktop')) {
       reply = 'For office computers, I recommend our single‑phase UPS like BP1000 (1kVA) or MFP series. They provide reliable backup for 3‑5 computers each. For larger setups (e.g., 20 computers), you might need a 10‑15kVA UPS like the EPX+ 10kVA or a modular system like PS15 12kVA. Would you like more details?';
     }
@@ -163,9 +209,7 @@ router.post('/advisor', async (req, res) => {
       reply = "I'm here to help you find the right product. Could you describe your power requirements or application? For example, 'UPS for office computers' or 'solar battery storage for home'.";
     }
 
-    // Ensure we always have a reply
     if (!reply) reply = "I'm sorry, I didn't understand that. Could you please rephrase?";
-
     res.json({ reply });
   } catch (error) {
     console.error('❌ AI Advisor error:', error);
