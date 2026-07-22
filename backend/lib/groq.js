@@ -16,34 +16,46 @@ async function analyzeDocumentWithGroq(documentText) {
     throw new Error('GROQ_API_KEY not set. Please check .env');
   }
 
-  // ─── Clean text: remove excessive whitespace ─────────────
   const cleanedText = documentText.replace(/\s+/g, ' ').trim();
 
   const prompt = `
-You are an expert Procurement AI Assistant. Analyze the following RFQ/Tender/Contract document and extract structured information. The document may contain tables, bullet points, sections, and various formats. Extract the following fields:
+You are an AI specializing in extracting structured data from **any type of procurement/tender document** – including RFQs, RFP, contracts, etc. The document may contain tables, bullet points, numbered lists, plain paragraphs, or mixed formats.
 
-1. **Client Details**: Full name, address, contact (if mentioned).
-2. **Scope of Work**: Brief description of the work, including key deliverables.
-3. **Deadlines**: Submission deadline, delivery timeline, any milestones (list them).
-4. **Risks & Penalties**: Any penalty clauses, liquidated damages, risks mentioned.
-5. **Payment Terms**: Payment schedule, advance, milestone payments, retention.
-6. **BOQ (Bill of Quantities)**: If present, extract items with: item name, quantity, unit, rate, and any specifications. If not explicitly present, infer from the document (e.g., services, materials). If none, return an empty array.
+Extract the following fields accurately, even if the data is scattered:
 
-Return the data in **strict JSON format** with the following keys:
+1. **Client Details**: Full name of the issuing authority, complete address, contact person (if any).
+2. **Scope of Work**: A concise summary of what is to be delivered, including any key deliverables and quantities if mentioned.
+3. **Deadlines**: 
+   - Submission deadline (exact date if given, else "Not specified").
+   - Delivery timeline (number of days or date).
+   - Any important milestones (list them).
+4. **Risks & Penalties**:
+   - Look for keywords: "penalty", "liquidated damages", "LD", "risk", "blacklisting", "insolvency".
+   - Extract all distinct risks/penalty clauses.
+5. **Payment Terms**:
+   - Look for any section named "Payment Terms", "Payment Schedule", "Milestones", "Financial Terms".
+   - Extract the payment breakdown in a clear, readable string (e.g., "10% advance, 40% on delivery, 30% on installation, 15% on commissioning, 5% retention").
+   - If a table is present, convert it to a text string with percentages and events.
+6. **BOQ (Bill of Quantities)**:
+   - If a table with item, quantity, unit, rate exists, extract all rows.
+   - If no explicit table, infer the main deliverables from the scope. Create at least one item per major deliverable (e.g., "Smart Classroom Setup", "Annual Maintenance", "Hardware Supply").
+   - Always include at least one item if the document describes any work.
+
+Return a JSON object with the following keys:
 {
   "client": { "name": "", "address": "", "contact": "" },
   "scope": "",
   "deadlines": { "submission": "", "delivery": "", "milestones": [] },
-  "risks": [""],
+  "risks": [],
   "paymentTerms": "",
   "boq": [ { "item": "", "qty": "", "unit": "", "rate": "", "spec": "" } ]
 }
 
-**Important Instructions:**
-- If a field is not explicitly mentioned, use "Not specified" or empty array.
-- For BOQ, look for tables, lists, or sections with quantities. Extract as many items as possible.
-- For payment terms, if there is a table with milestones and percentages, extract them into a clear string.
-- Respond **only** with valid JSON. Do not include markdown codeblocks or extra text.
+**Important Rules:**
+- Never use "Not specified" for all fields – try to infer from context.
+- For payment terms, if there are multiple milestones, concatenate them with commas.
+- For BOQ, if the document is for services, use "1 Lot" as quantity.
+- Respond ONLY with valid JSON. No markdown, no extra text.
 
 Document Content:
 ${cleanedText.substring(0, 15000)}
@@ -53,60 +65,86 @@ ${cleanedText.substring(0, 15000)}
     const response = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       messages: [
-        { role: 'system', content: 'You are an expert in procurement document analysis. Respond only with valid JSON.' },
+        { role: 'system', content: 'You extract structured data from procurement documents in any format. Respond only with valid JSON.' },
         { role: 'user', content: prompt }
       ],
-      temperature: 0,
+      temperature: 0.1,
       max_tokens: 4000,
     });
 
     const raw = response.choices[0]?.message?.content || '{}';
-    // Remove markdown code fences
     const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(clean);
 
-    // ─── Ensure all keys exist ──────────────────────────────
-    const defaultKeys = {
-      client: { name: 'Not specified', address: 'Not specified', contact: 'Not specified' },
-      scope: 'Not specified',
-      deadlines: { submission: 'Not specified', delivery: 'Not specified', milestones: [] },
-      risks: [],
-      paymentTerms: 'Not specified',
-      boq: []
-    };
-
-    for (const key of Object.keys(defaultKeys)) {
-      if (!(key in parsed) || (typeof parsed[key] !== 'object' && typeof parsed[key] !== 'string')) {
-        parsed[key] = defaultKeys[key];
-      }
-      // If boq is not an array, make it an array
-      if (key === 'boq' && !Array.isArray(parsed[key])) {
-        parsed[key] = [];
-      }
-      // Ensure client has all sub-keys
-      if (key === 'client') {
-        const clientDefaults = defaultKeys.client;
-        for (const subKey of Object.keys(clientDefaults)) {
-          if (!(subKey in parsed.client)) {
-            parsed.client[subKey] = 'Not specified';
-          }
-        }
-      }
-      // Ensure deadlines has all sub-keys
-      if (key === 'deadlines') {
-        const ddlDefaults = defaultKeys.deadlines;
-        for (const subKey of Object.keys(ddlDefaults)) {
-          if (!(subKey in parsed.deadlines)) {
-            parsed.deadlines[subKey] = ddlDefaults[subKey];
-          }
-        }
+    // ─── Post-processing to ensure complete data ────────────
+    // 1. Ensure client has all fields
+    const clientDefaults = { name: 'Not specified', address: 'Not specified', contact: 'Not specified' };
+    for (const key of Object.keys(clientDefaults)) {
+      if (!parsed.client || !(key in parsed.client)) {
+        if (!parsed.client) parsed.client = {};
+        parsed.client[key] = clientDefaults[key];
       }
     }
+
+    // 2. Ensure deadlines have all fields
+    const ddlDefaults = { submission: 'Not specified', delivery: 'Not specified', milestones: [] };
+    for (const key of Object.keys(ddlDefaults)) {
+      if (!parsed.deadlines || !(key in parsed.deadlines)) {
+        if (!parsed.deadlines) parsed.deadlines = {};
+        parsed.deadlines[key] = ddlDefaults[key];
+      }
+    }
+
+    // 3. Ensure boq is an array, not empty
+    if (!Array.isArray(parsed.boq) || parsed.boq.length === 0) {
+      // Try to infer from scope
+      if (parsed.scope && parsed.scope !== 'Not specified') {
+        parsed.boq = [{
+          item: parsed.scope.substring(0, 60) + (parsed.scope.length > 60 ? '...' : ''),
+          qty: '1',
+          unit: 'Lot',
+          rate: 'Not specified',
+          spec: 'As per tender scope'
+        }];
+      } else {
+        parsed.boq = [{
+          item: 'Procurement work',
+          qty: '1',
+          unit: 'Lot',
+          rate: 'Not specified',
+          spec: 'As per document'
+        }];
+      }
+    }
+
+    // 4. Ensure paymentTerms is not empty
+    if (!parsed.paymentTerms || parsed.paymentTerms === 'Not specified') {
+      // If scope mentions payment, infer
+      if (parsed.scope && parsed.scope.toLowerCase().includes('payment')) {
+        parsed.paymentTerms = 'Refer to document for payment details.';
+      }
+    }
+
+    // 5. Ensure scope is not empty
+    if (!parsed.scope || parsed.scope === 'Not specified') {
+      parsed.scope = 'Procurement of goods/services as per tender.';
+    }
+
+    // 6. Ensure risks is an array
+    if (!Array.isArray(parsed.risks)) parsed.risks = [];
 
     return parsed;
   } catch (error) {
     console.error('Groq API error:', error.message);
-    throw new Error(`AI extraction failed: ${error.message}`);
+    // Return a structured fallback
+    return {
+      client: { name: 'Extraction Failed', address: 'Not specified', contact: 'Not specified' },
+      scope: 'AI extraction failed. Please review document manually.',
+      deadlines: { submission: 'Not specified', delivery: 'Not specified', milestones: [] },
+      risks: ['AI extraction failed – verify manually.'],
+      paymentTerms: 'Not specified',
+      boq: [{ item: 'Extraction Failed', qty: '1', unit: 'Lot', rate: 'Not specified', spec: 'Manual review needed' }]
+    };
   }
 }
 
