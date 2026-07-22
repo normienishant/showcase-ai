@@ -4,10 +4,11 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const fs = require('fs');
 const path = require('path');
-const pdfParse = require('pdf-parse');   // ✅ fixed
+const pdfParse = require('pdf-parse');
 const AdmZip = require('adm-zip');
 const { analyzeDocumentWithGroq } = require('../../lib/groq');
 
+// ─── Extract text from file (supports PDF, TXT, DOCX, ZIP) ──
 async function extractTextFromFile(filePath, originalName) {
   const ext = path.extname(originalName).toLowerCase();
 
@@ -17,7 +18,7 @@ async function extractTextFromFile(filePath, originalName) {
 
   if (ext === '.pdf') {
     const buffer = fs.readFileSync(filePath);
-    const data = await pdfParse(buffer);  // ✅ fixed
+    const data = await pdfParse(buffer);
     console.log('📄 PDF parsed, text length:', data.text.length);
     return data.text;
   }
@@ -56,6 +57,13 @@ async function extractTextFromFile(filePath, originalName) {
   throw new Error(`Unsupported file type: ${ext}`);
 }
 
+// ─── Preprocess text to help AI (optional) ──────────────────
+function preprocessText(text) {
+  // Remove excessive newlines
+  return text.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// ─── Main analysis route ────────────────────────────────────
 router.get('/:id', async (req, res) => {
   console.log('🔍 Analysis route hit for ID:', req.params.id);
   const { id } = req.params;
@@ -69,6 +77,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
+    // Check cache
     const hasRawText = session.extractedData?.rawText && session.extractedData.rawText.length > 20;
     const hasAnalysis = session.extractedData?.analysis && Object.keys(session.extractedData.analysis).length > 0;
 
@@ -111,23 +120,33 @@ router.get('/:id', async (req, res) => {
       });
     }
 
+    // Preprocess text
+    const processedText = preprocessText(fileText);
+
     console.log('🤖 Calling Groq AI for extraction...');
     let analysisResult;
     try {
-      analysisResult = await analyzeDocumentWithGroq(fileText);
+      analysisResult = await analyzeDocumentWithGroq(processedText);
       console.log('✅ AI extraction complete.');
     } catch (aiError) {
       console.error('❌ AI error:', aiError.message);
+      // Provide a fallback structure
       analysisResult = {
-        client: { name: 'Extraction Failed', address: '', contact: '' },
-        scope: 'Could not extract scope.',
-        boq: [],
-        deadlines: { submission: '', delivery: '', milestones: [] },
-        risks: ['AI extraction failed – please review manually.'],
-        paymentTerms: 'N/A'
+        client: { name: 'Extraction Failed', address: 'Not specified', contact: 'Not specified' },
+        scope: 'Could not extract scope. Please review document manually.',
+        deadlines: { submission: 'Not specified', delivery: 'Not specified', milestones: [] },
+        risks: ['AI extraction failed – please verify manually.'],
+        paymentTerms: 'Not specified',
+        boq: []
       };
     }
 
+    // Ensure boq is always an array
+    if (!Array.isArray(analysisResult.boq)) {
+      analysisResult.boq = [];
+    }
+
+    // Save result
     const updatedSession = await prisma.procurementSession.update({
       where: { id },
       data: {
