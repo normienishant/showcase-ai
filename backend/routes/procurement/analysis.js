@@ -4,11 +4,41 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const fs = require('fs');
 const path = require('path');
-const pdfParse = require('pdf-parse');
+const { PdfReader } = require('pdfreader');
 const AdmZip = require('adm-zip');
+const axios = require('axios');
+const FormData = require('form-data');
 const { analyzeDocumentWithGroq } = require('../../lib/groq');
 
-// ─── Extract text from file (supports PDF, TXT, DOCX, ZIP) ──
+// ─── OCR using OCR.space ────────────────────────────────────
+async function performOCR(filePath) {
+  const formData = new FormData();
+  formData.append('file', fs.createReadStream(filePath));
+  formData.append('apikey', process.env.OCR_SPACE_API_KEY || '');
+  formData.append('OCREngine', '2');
+  formData.append('scale', 'true');
+  formData.append('isTable', 'true');
+
+  try {
+    const response = await axios.post('https://api.ocr.space/parse/image', formData, {
+      headers: formData.getHeaders(),
+      timeout: 60000,
+    });
+    if (response.data.OCRExitCode === 1) {
+      const text = response.data.ParsedResults?.[0]?.ParsedText || '';
+      console.log('✅ OCR successful, text length:', text.length);
+      return text;
+    } else {
+      console.error('OCR error:', response.data.ErrorMessage || 'Unknown error');
+      return '';
+    }
+  } catch (error) {
+    console.error('OCR API error:', error.message);
+    return '';
+  }
+}
+
+// ─── Extract text from file ──────────────────────────────
 async function extractTextFromFile(filePath, originalName) {
   const ext = path.extname(originalName).toLowerCase();
 
@@ -17,10 +47,28 @@ async function extractTextFromFile(filePath, originalName) {
   }
 
   if (ext === '.pdf') {
+    console.log('📄 PDF detected, parsing with pdfreader...');
     const buffer = fs.readFileSync(filePath);
-    const data = await pdfParse(buffer);
-    console.log('📄 PDF parsed, text length:', data.text.length);
-    return data.text;
+    let text = await new Promise((resolve, reject) => {
+      let t = '';
+      new PdfReader().parseBuffer(buffer, (err, item) => {
+        if (err) reject(err);
+        else if (!item) resolve(t);
+        else if (item.text) t += item.text + ' ';
+      });
+    });
+    console.log('📄 pdfreader extracted length:', text.length);
+
+    // Fallback to OCR if text is too short
+    if (text.length < 50) {
+      console.log('⚠️ Low text quality, falling back to OCR...');
+      const ocrText = await performOCR(filePath);
+      if (ocrText && ocrText.length > 50) {
+        console.log('✅ OCR extracted length:', ocrText.length);
+        return ocrText;
+      }
+    }
+    return text;
   }
 
   if (ext === '.zip') {
@@ -32,8 +80,15 @@ async function extractTextFromFile(filePath, originalName) {
         const entryExt = path.extname(entry.entryName).toLowerCase();
         if (entryExt === '.pdf') {
           const buf = entry.getData();
-          const parsed = await pdfParse(buf);
-          combined += `\n--- ${entry.entryName} ---\n` + parsed.text;
+          let t = await new Promise((resolve, reject) => {
+            let txt = '';
+            new PdfReader().parseBuffer(buf, (err, item) => {
+              if (err) reject(err);
+              else if (!item) resolve(txt);
+              else if (item.text) txt += item.text + ' ';
+            });
+          });
+          combined += `\n--- ${entry.entryName} ---\n` + t;
         } else if (entryExt === '.txt') {
           const text = entry.getData().toString('utf-8');
           combined += `\n--- ${entry.entryName} ---\n` + text;
@@ -57,9 +112,8 @@ async function extractTextFromFile(filePath, originalName) {
   throw new Error(`Unsupported file type: ${ext}`);
 }
 
-// ─── Preprocess text to help AI (optional) ──────────────────
+// ─── Preprocess text ──────────────────────────────────────
 function preprocessText(text) {
-  // Remove excessive newlines
   return text.replace(/\n{3,}/g, '\n\n').trim();
 }
 
@@ -77,8 +131,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    // Check cache
-    const hasRawText = session.extractedData?.rawText && session.extractedData.rawText.length > 20;
+    const hasRawText = session.extractedData?.rawText && session.extractedData.rawText.length > 50;
     const hasAnalysis = session.extractedData?.analysis && Object.keys(session.extractedData.analysis).length > 0;
 
     if (hasRawText && hasAnalysis && session.status === 'analysis_done') {
@@ -94,7 +147,7 @@ router.get('/:id', async (req, res) => {
 
     let fileText = '';
 
-    if (session.extractedData?.rawText && session.extractedData.rawText.length > 20) {
+    if (session.extractedData?.rawText && session.extractedData.rawText.length > 50) {
       fileText = session.extractedData.rawText;
       console.log('📄 Using stored rawText, length:', fileText.length);
     } else {
@@ -106,7 +159,7 @@ router.get('/:id', async (req, res) => {
           return res.status(404).json({ error: 'Uploaded file not found' });
         }
         fileText = await extractTextFromFile(filePath, session.fileName);
-        console.log('📄 Fresh extraction, length:', fileText.length);
+        console.log('📄 Final extracted length:', fileText.length);
       } else {
         const response = await fetch(fileUrl);
         const buffer = await response.arrayBuffer();
@@ -115,14 +168,13 @@ router.get('/:id', async (req, res) => {
     }
 
     if (!fileText || fileText.length < 20) {
+      console.error('❌ Extracted text is too short:', fileText.length);
       return res.status(400).json({
-        error: 'Could not extract text. Please upload a text-based PDF or TXT file.'
+        error: 'Could not extract text. The file might be scanned, corrupted, or empty. Please upload a text-based PDF or TXT file.'
       });
     }
 
-    // Preprocess text
     const processedText = preprocessText(fileText);
-
     console.log('🤖 Calling Groq AI for extraction...');
     let analysisResult;
     try {
@@ -130,7 +182,6 @@ router.get('/:id', async (req, res) => {
       console.log('✅ AI extraction complete.');
     } catch (aiError) {
       console.error('❌ AI error:', aiError.message);
-      // Provide a fallback structure
       analysisResult = {
         client: { name: 'Extraction Failed', address: 'Not specified', contact: 'Not specified' },
         scope: 'Could not extract scope. Please review document manually.',
@@ -141,12 +192,10 @@ router.get('/:id', async (req, res) => {
       };
     }
 
-    // Ensure boq is always an array
     if (!Array.isArray(analysisResult.boq)) {
       analysisResult.boq = [];
     }
 
-    // Save result
     const updatedSession = await prisma.procurementSession.update({
       where: { id },
       data: {
