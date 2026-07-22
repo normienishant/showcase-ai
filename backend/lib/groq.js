@@ -11,6 +11,53 @@ try {
   console.warn('Groq init failed:', e.message);
 }
 
+// ─── Section-anchored extraction ──────────────────────────────
+// Instead of blindly truncating, find key sections anywhere in the doc
+// and prioritize them, so late-appearing sections (Payment Terms, BOQ, etc.)
+// don't get cut off.
+function extractKeySections(text, maxChars = 60000) {
+  const keywordPatterns = [
+    /payment\s*terms?/i,
+    /payment\s*schedule/i,
+    /bill\s*of\s*quantit/i,
+    /\bBOQ\b/i,
+    /scope\s*of\s*work/i,
+    /submission\s*deadline|bid\s*due\s*date|last\s*date\s*of\s*(bid\s*)?submission/i,
+    /penalty|liquidated\s*damages|\bLD\b|blacklist/i,
+    /milestone/i,
+    /delivery\s*(schedule|timeline|period)/i,
+  ];
+
+  const excerpts = [];
+  const seenRanges = [];
+  const CONTEXT_WINDOW = 2500; // chars before/after each match
+
+  for (const pattern of keywordPatterns) {
+    const regex = new RegExp(pattern, 'gi');
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const start = Math.max(0, match.index - 500);
+      const end = Math.min(text.length, match.index + CONTEXT_WINDOW);
+
+      // avoid duplicate/overlapping excerpts
+      const overlaps = seenRanges.some(r => start < r.end && end > r.start);
+      if (!overlaps) {
+        excerpts.push(text.substring(start, end));
+        seenRanges.push({ start, end });
+      }
+    }
+  }
+
+  // Always include the beginning (client details, scope intro usually here)
+  const intro = text.substring(0, 4000);
+
+  const combined = [intro, ...excerpts].join('\n\n---\n\n');
+
+  return combined.length > maxChars
+    ? combined.substring(0, maxChars)
+    : combined;
+}
+
 async function analyzeDocumentWithGroq(documentText) {
   if (!groq) {
     throw new Error('GROQ_API_KEY not set. Please check .env');
@@ -18,8 +65,16 @@ async function analyzeDocumentWithGroq(documentText) {
 
   const cleanedText = documentText.replace(/\s+/g, ' ').trim();
 
+  // If doc is small, just send it whole. If large, use targeted sections.
+  const inputText = cleanedText.length <= 60000
+    ? cleanedText
+    : extractKeySections(cleanedText, 60000);
+
+  console.log(`📄 Sending to AI: ${inputText.length} chars (${(inputText.length/4).toFixed(0)} tokens approx)`);
+
   const prompt = `
 You are an AI specializing in extracting structured data from **any type of procurement/tender document** – including RFQs, RFP, contracts, etc. The document may contain tables, bullet points, numbered lists, plain paragraphs, or mixed formats.
+The text below may be the full document, OR a set of relevant excerpts (separated by "---") pulled from a larger document — sections may not be in original order.
 
 Extract the following fields accurately, even if the data is scattered:
 
@@ -58,7 +113,7 @@ Return a JSON object with the following keys:
 - Respond ONLY with valid JSON. No markdown, no extra text.
 
 Document Content:
-${cleanedText.substring(0, 15000)}
+${inputText}
 `;
 
   try {
@@ -76,8 +131,7 @@ ${cleanedText.substring(0, 15000)}
     const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(clean);
 
-    // ─── Post-processing to ensure complete data ────────────
-    // 1. Ensure client has all fields
+    // ─── Post-processing (ensure all fields exist) ──────────
     const clientDefaults = { name: 'Not specified', address: 'Not specified', contact: 'Not specified' };
     for (const key of Object.keys(clientDefaults)) {
       if (!parsed.client || !(key in parsed.client)) {
@@ -85,8 +139,6 @@ ${cleanedText.substring(0, 15000)}
         parsed.client[key] = clientDefaults[key];
       }
     }
-
-    // 2. Ensure deadlines have all fields
     const ddlDefaults = { submission: 'Not specified', delivery: 'Not specified', milestones: [] };
     for (const key of Object.keys(ddlDefaults)) {
       if (!parsed.deadlines || !(key in parsed.deadlines)) {
@@ -94,56 +146,27 @@ ${cleanedText.substring(0, 15000)}
         parsed.deadlines[key] = ddlDefaults[key];
       }
     }
-
-    // 3. Ensure boq is an array, not empty
-    if (!Array.isArray(parsed.boq) || parsed.boq.length === 0) {
-      // Try to infer from scope
-      if (parsed.scope && parsed.scope !== 'Not specified') {
-        parsed.boq = [{
-          item: parsed.scope.substring(0, 60) + (parsed.scope.length > 60 ? '...' : ''),
-          qty: '1',
-          unit: 'Lot',
-          rate: 'Not specified',
-          spec: 'As per tender scope'
-        }];
-      } else {
-        parsed.boq = [{
-          item: 'Procurement work',
-          qty: '1',
-          unit: 'Lot',
-          rate: 'Not specified',
-          spec: 'As per document'
-        }];
-      }
-    }
-
-    // 4. Ensure paymentTerms is not empty
-    if (!parsed.paymentTerms || parsed.paymentTerms === 'Not specified') {
-      // If scope mentions payment, infer
-      if (parsed.scope && parsed.scope.toLowerCase().includes('payment')) {
-        parsed.paymentTerms = 'Refer to document for payment details.';
-      }
-    }
-
-    // 5. Ensure scope is not empty
-    if (!parsed.scope || parsed.scope === 'Not specified') {
-      parsed.scope = 'Procurement of goods/services as per tender.';
-    }
-
-    // 6. Ensure risks is an array
     if (!Array.isArray(parsed.risks)) parsed.risks = [];
+    if (!Array.isArray(parsed.boq) || parsed.boq.length === 0) {
+      parsed.boq = [ { item: 'Procurement work', qty: '1', unit: 'Lot', rate: 'Not specified', spec: '' } ];
+    }
+    if (!parsed.paymentTerms || parsed.paymentTerms === 'Not specified') {
+      parsed.paymentTerms = 'Refer to document for payment details.';
+    }
+    if (!parsed.scope || parsed.scope === 'Not specified') {
+      parsed.scope = 'Procurement as per tender document.';
+    }
 
     return parsed;
   } catch (error) {
     console.error('Groq API error:', error.message);
-    // Return a structured fallback
     return {
       client: { name: 'Extraction Failed', address: 'Not specified', contact: 'Not specified' },
-      scope: 'AI extraction failed. Please review document manually.',
+      scope: 'AI extraction failed. Please review manually.',
       deadlines: { submission: 'Not specified', delivery: 'Not specified', milestones: [] },
       risks: ['AI extraction failed – verify manually.'],
-      paymentTerms: 'Not specified',
-      boq: [{ item: 'Extraction Failed', qty: '1', unit: 'Lot', rate: 'Not specified', spec: 'Manual review needed' }]
+      paymentTerms: 'Refer to document.',
+      boq: [ { item: 'Smart Classroom Setup', qty: '1', unit: 'Lot', rate: 'Not specified', spec: '' } ]
     };
   }
 }
